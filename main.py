@@ -1,5 +1,4 @@
 import requests
-from bs4 import BeautifulSoup
 import xml.etree.ElementTree as ET
 import telegram
 import os
@@ -18,7 +17,7 @@ TARGET_ITEMS = {'WMT', 'COST', 'PEP', 'XOM', 'WELL', 'O', 'PSA', 'GLD', 'IAU', '
 WATCHLIST = OWNED_ITEMS.union(TARGET_ITEMS)
 
 def scrape_sec_insider_trades():
-    url = "https://www.sec.gov/cgi-bin/current_q?i=csv"
+    url = "https://www.sec.gov/cgi-bin/own-disp"  # Corrected URL for insider trades
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0.4472.124"}
     for attempt in range(3):
         try:
@@ -45,7 +44,7 @@ def scrape_sec_insider_trades():
                         elif ticker in TARGET_ITEMS:
                             relevant_trades["targeted"].append(trade_info)
             return relevant_trades
-        except requests.exceptions.RequestError as e:
+        except requests.exceptions.RequestException as e:
             if attempt == 2:
                 return {"owned": [f"SEC connection error after retries: {e}"], "targeted": []}
         except ET.ParseError:
@@ -58,7 +57,7 @@ def send_telegram_message(message):
 
 def main():
     trades = scrape_sec_insider_trades()
-    timestamp = datetime.now().strftime("%Y-%m-d %H:%M:%S ET")
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S ET")
     message = f"Insider Trade Alerts ({timestamp}):\n"
 
     if trades["owned"]:
