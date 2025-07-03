@@ -2,18 +2,21 @@ import os
 import json
 import fetcher
 import send_telegram
-from datetime import datetime  # ✅ FIXED
+from datetime import datetime
 
 def main():
     try:
-        # Step 1: Fetch fresh insider data
+        # ✅ Test: send a manual test alert first
+        send_telegram.send_alert("TEST", "Amelia Bot", "Test", 12345, "Test Bias", "https://example.com")
+
+        # ✅ Step 1: Fetch fresh insider data
         fetcher.fetch_and_update_insider_flow()
 
-        # Step 2: Load it
+        # ✅ Step 2: Load it
         with open("insider_flow.json", "r") as f:
             data = json.load(f)
 
-        # Step 3: Loop & send alerts
+        # ✅ Step 3: Loop & send real alerts
         for ticker, info in data["tickers"].items():
             for alert in info.get("alerts", []):
                 owner = alert.get("owner", "Insider")
