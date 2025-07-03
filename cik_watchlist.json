@@ -1,4 +1,5 @@
-{"0": {"cik_str": 1045810, "ticker": "NVDA", "title": "NVIDIA Corporation"},
+{
+  "0": {"cik_str": 1045810, "ticker": "NVDA", "title": "NVIDIA Corporation"},
   "1": {"cik_str": 1837105, "ticker": "IONQ", "title": "IonQ, Inc."},
   "2": {"cik_str": 1529113, "ticker": "QUBT", "title": "Quantum Computing Inc."},
   "3": {"cik_str": 1848763, "ticker": "RGTI", "title": "Rigetti Computing"},
