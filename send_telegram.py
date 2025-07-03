@@ -9,7 +9,7 @@ def send_alert(ticker, owner, trade_type, amount, bias, link):
         f"📢 Insider Alert: {ticker}\n"
         f"👤 Insider: {owner}\n"
         f"Type: {trade_type}\n"
-        f"Amount: {amount:,.0f} shares\n"
+        f"Amount: {amount:,} shares\n"
         f"Bias: {bias}\n"
         f"Link: {link}"
     )
