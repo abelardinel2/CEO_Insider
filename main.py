@@ -2,21 +2,18 @@ import os
 import json
 import fetcher
 import send_telegram
-from datetime import datetime
+from datetime import datetime  # ✅ Make sure datetime is imported!
 
 def main():
     try:
-        # ✅ Test: send a manual test alert first
-        send_telegram.send_alert("TEST", "Amelia Bot", "Test", 12345, "Test Bias", "https://example.com")
-
         # ✅ Step 1: Fetch fresh insider data
         fetcher.fetch_and_update_insider_flow()
 
-        # ✅ Step 2: Load it
+        # ✅ Step 2: Load the updated JSON
         with open("insider_flow.json", "r") as f:
             data = json.load(f)
 
-        # ✅ Step 3: Loop & send real alerts
+        # ✅ Step 3: Loop through and send alerts for each watchlist match
         for ticker, info in data["tickers"].items():
             for alert in info.get("alerts", []):
                 owner = alert.get("owner", "Insider")
