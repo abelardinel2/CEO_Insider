@@ -50,7 +50,4 @@
     "SUIUSD": {"buys": 0, "sells": 0, "alerts": []},
     "KYMR": {"buys": 0, "sells": 0, "alerts": []},
     "DHR": {"buys": 0, "sells": 0, "alerts": []},
-    "RELIANCE": {"buys": 0, "sells": 0, "alerts": []}
-  },
-  "last_updated": "2025-07-03T00:42:00Z"
-}
+    "RELIANCE": {"buys": 0, "sells": 0, "alerts":
