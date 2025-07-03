@@ -1,32 +1,23 @@
 import os
 import requests
-from datetime import datetime, timedelta
 
-def send_summary(data):
-    bot_token = os.getenv("CEO_INSIDER_BOT_TOKEN")  # New secret
-    chat_id = os.getenv("CEO_INSIDER_CHAT_ID")     # New secret
-    if not bot_token or not chat_id:
-        print("❌ CEO Insider bot credentials missing")
-        return
+def send_alert(ticker, owner, trade_type, amount, bias, link):
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
-    message = f"📢 CEO Insider Alerts ({datetime.now().strftime('%Y-%m-%d %H:%M:%S ET')})\n\n"
-    alerts_sent = False
-    for ticker, info in data["tickers"].items():
-        if info["buys"] > 0 or info["sells"] > 0:
-            message += f"{ticker}: Buys {info['buys']:.2f}, Sells {info['sells']:.2f}\n"
-            for alert in info["alerts"]:
-                message += f"  - {alert['type']} on {alert['date']}: {alert['link']}\n"
-            alerts_sent = True
-    if not alerts_sent:
-        message += "No new insider activity detected for watchlist.\n"
+    message = (
+        f"📢 Insider Alert: {ticker}\n"
+        f"👤 Insider: {owner}\n"
+        f"Type: {trade_type}\n"
+        f"Amount: {amount:,.0f} shares\n"
+        f"Bias: {bias}\n"
+        f"Link: {link}"
+    )
+
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    response = requests.post(url, json={"chat_id": chat_id, "text": message})
-    if response.status_code != 200:
-        print(f"❌ Failed to send CEO Insider message: {response.text}")
-    else:
-        print("✅ CEO Insider message sent successfully!")
+    response = requests.post(url, data={"chat_id": chat_id, "text": message})
 
-if __name__ == "__main__":
-    with open("insider_flow.json", "r") as f:
-        data = json.load(f)
-    send_summary(data)
+    if response.status_code == 200:
+        print(f"✅ Alert sent for {ticker}")
+    else:
+        print(f"❌ Failed to send alert: {response.text}")
