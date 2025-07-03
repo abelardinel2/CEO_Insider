@@ -14,7 +14,10 @@ WATCHLIST = [
 
 def fetch_and_update_insider_flow():
     url = "https://www.sec.gov/cgi-bin/current_q?i=csv"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0.4472.124"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0.4472.124 (your.email@example.com)",  # Replace with your email
+        "Accept": "application/xml"
+    }
     try:
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
@@ -49,7 +52,7 @@ def fetch_and_update_insider_flow():
             json.dump(trades, f, indent=4)
         with open("output.log", "a") as f:
             f.write(f"{datetime.now()} - Fetch completed: {trades}\n")
-    except requests.exceptions.RequestError as e:
+    except requests.exceptions.RequestException as e:  # Corrected to RequestException
         print(f"Error fetching data: {e}")
         with open("insider_flow.json", "w") as f:
             json.dump({"tickers": {ticker: {"buys": 0, "sells": 0, "alerts": []} for ticker in WATCHLIST}, "last_updated": datetime.utcnow().isoformat() + "Z"}, f, indent=4)
