@@ -2,36 +2,32 @@ import os
 import json
 import fetcher
 import send_telegram
-from datetime import datetime  # ✅ Make sure datetime is imported!
+from datetime import datetime  # make sure this is here!
 
 def main():
     try:
-        # ✅ Step 1: Fetch fresh insider data
+        # 1️⃣ Fetch updated insider flow for all CIKs
         fetcher.fetch_and_update_insider_flow()
 
-        # ✅ Step 2: Load the updated JSON
-        with open("insider_flow.json", "r") as f:
-            data = json.load(f)
-
-        # ✅ Step 3: Loop through and send alerts for each watchlist match
-        for ticker, info in data["tickers"].items():
-            for alert in info.get("alerts", []):
-                owner = alert.get("owner", "Insider")
-                trade_type = alert.get("type")
-                amount = alert.get("amount_buys") if trade_type == "Buy" else alert.get("amount_sells")
-                link = alert.get("link")
-                bias = "🤑💰 Insider Accumulation" if trade_type == "Buy" else "💩🚽 Dumping"
-                send_telegram.send_alert(ticker, owner, trade_type, amount, bias, link)
-
-    except FileNotFoundError as e:
-        print(f"❌ File not found - {e}")
-        with open("output.log", "a") as f:
-            f.write(f"{datetime.now()} - File error: {e}\n")
-
-    except json.JSONDecodeError as e:
-        print(f"❌ Invalid JSON - {e}")
-        with open("output.log", "a") as f:
-            f.write(f"{datetime.now()} - JSON error: {e}\n")
+        # 2️⃣ Loop through each ticker JSON and send alert(s)
+        for file in os.listdir():
+            if file.endswith("_insider.json"):
+                ticker = file.split("_")[0]
+                with open(file, "r") as f:
+                    try:
+                        data = json.load(f)
+                        # Optional: put your custom parse logic here!
+                        # Example: dummy fake alert to test:
+                        send_telegram.send_alert(
+                            ticker,
+                            "Insider",
+                            "Buy",
+                            1000,
+                            "🤑💰 Insider Accumulation",
+                            f"https://www.sec.gov/edgar/browse/?CIK={ticker}"
+                        )
+                    except json.JSONDecodeError:
+                        print(f"❌ Skipped {file}: Invalid JSON.")
 
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
