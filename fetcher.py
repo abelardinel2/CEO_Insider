@@ -1,98 +1,80 @@
 import os
 import requests
-import xml.etree.ElementTree as ET
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
-WATCHLIST = {
-    "PFE": "0000078003",
-    "QUBT": "0001593219",
-    "WMT": "0000104169",
-    "JNJ": "0000200406",
-    "COST": "0000909832",
-    "PEP": "0000077476",
-    "XOM": "0000034088",
-    "AGI": "0001072725",
-    "HL": "0000716592",
-    "SILJ": "0001526815",
-    "GLD": "0001222333",
-    "IAU": "0001278680",
-    "BAR": "0001571049",
-    "SLV": "0001330568",
-    "WPM": "0001626890",
-    "AG": "0001308648",
-    "B": "0000072541",
-    "COIN": "0001679788",
-    "JPM": "0000019617",
-    "IREN": "0001841968",
-    "FPI": "0001591670",
-    "LAND": "0001527541",
-    "WELL": "0000766704",
-    "PSA": "0001393311",
-    "O": "0000726728",
-    "SMCI": "0001375365",
-    "NVDA": "0001045810",
-    "IONQ": "0001824920",
-    "RGTI": "0001866692",
-    "ARKQ": "0001597742",
-    "AIQ": "0001760175",
-    "PLTR": "0001321655",
-    "USO": "0001327068",
-    "XOP": "0001160308",
-    "PHO": "0001398432",
-    "FIW": "0001398518",
-    "XYL": "0001524472",
-    "AWK": "0001410636",
-    "WTRG": "0000078319",
-    "UFO": "0001751245",
-    "RKLB": "0001836833",
-    "ASTS": "0001780312",
-    "KYMR": "0001824293",
-    "DHR": "0000885160",
-    "RELIANCE": "0000081381"
+CIK_WATCHLIST = {
+    "PFE": 78003,
+    "QUBT": 1775285,
+    "WMT": 104169,
+    "JNJ": 200406,
+    "COST": 909832,
+    "PEP": 77476,
+    "XOM": 34088,
+    "AGI": 1388141,
+    "HL": 719413,
+    "GLD": 1222333,
+    "IAU": 1327068,
+    "SLV": 1330568,
+    "WPM": 1048805,
+    "AG": 1437174,
+    "GOLD": 756894,
+    "COIN": 1679788,
+    "JPM": 19617,
+    "IREN": 1845815,
+    "FPI": 1591670,
+    "LAND": 1495240,
+    "WELL": 766704,
+    "PSA": 1393311,
+    "O": 726728,
+    "SMCI": 1375365,
+    "NVDA": 1045810,
+    "IONQ": 1824920,
+    "RGTI": 1837518,
+    "ARKQ": 1577526,
+    "AIQ": 1454889,
+    "PLTR": 1321655,
+    "USO": 1327068,
+    "XOP": 1327068,
+    "PHO": 1277227,
+    "FIW": 1400893,
+    "XYL": 1524472,
+    "AWK": 1410636,
+    "WTRG": 86729,
+    "UFO": 1754057,
+    "RKLB": 1819994,
+    "ASTS": 1780312,
+    "KYMR": 1722879,
+    "DHR": 313616,
+    "RELIANCE": 0  # placeholder if needed
 }
 
 def fetch_and_update_insider_flow():
-    url = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (CEOInsiderBot/1.0 contact@oriadawn.xyz)",
-        "Accept": "application/xml"
-    }
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=7)
 
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
+    for ticker, cik in CIK_WATCHLIST.items():
+        if cik == 0:
+            continue
 
-        root = ET.fromstring(response.content)
-        trades = {
-            "tickers": {ticker: {"buys": 0, "sells": 0, "alerts": []} for ticker in WATCHLIST},
-            "last_updated": datetime.utcnow().isoformat() + "Z"
+        cik_str = str(cik).zfill(10)
+        url = f"https://data.sec.gov/submissions/CIK{cik_str}.json"
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (youremail@domain.com)"
         }
 
-        for entry in root.findall("{http://www.w3.org/2005/Atom}entry"):
-            link_el = entry.find("{http://www.w3.org/2005/Atom}link")
-            link = link_el.attrib.get('href') if link_el is not None else ""
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            print(f"✅ Fetched: {url}")
 
-            if "/edgar/data/" in link:
-                cik = link.split("/edgar/data/")[1].split("/")[0].strip()
-                for ticker, watch_cik in WATCHLIST.items():
-                    if watch_cik != "NA" and cik == watch_cik:
-                        trades["tickers"][ticker]["buys"] += 1000  # Placeholder
-                        trades["tickers"][ticker]["alerts"].append({
-                            "link": link,
-                            "date": datetime.utcnow().isoformat().split("T")[0],
-                            "type": "Buy",
-                            "amount_buys": 1000
-                        })
-                        print(f"✅ Matched {ticker} → {cik}")
+            data = response.json()
+            with open(f"{ticker}_insider.json", "w") as f:
+                json.dump(data, f, indent=2)
 
-        with open("insider_flow.json", "w") as f:
-            json.dump(trades, f, indent=4)
-
-        print("✅ insider_flow.json updated")
-
-    except Exception as e:
-        print(f"❌ Fetcher error: {e}")
+        except requests.RequestException as e:
+            print(f"❌ Error fetching {ticker}: {e}")
 
 if __name__ == "__main__":
     fetch_and_update_insider_flow()
