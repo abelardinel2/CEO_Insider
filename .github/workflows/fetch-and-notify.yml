@@ -14,7 +14,7 @@ jobs:
       run: echo "Starting job..."
 
     - name: Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v3
 
     - name: Setup Python
       uses: actions/setup-python@v4
@@ -29,7 +29,9 @@ jobs:
 
     - name: Fetch and Update insider_flow.json
       run: python fetch_and_update_insider_flow.py
-      continue-on-error: true  # Allow failure to log errors
+      continue-on-error: true
+      env:
+        PYTHONUNBUFFERED: 1
 
     - name: Commit and push updated insider_flow.json
       run: |
@@ -44,18 +46,19 @@ jobs:
           echo "✅ Pushed updated insider_flow.json!"
         fi
 
-    - name: Send Telegram Summary
+    - name: Send CEO Insider Alerts
       run: python send_telegram.py
       env:
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      continue-on-error: true  # Log errors but proceed
+        TELEGRAM_BOT_TOKEN: ${{ secrets.CEO_INSIDER_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.CEO_INSIDER_CHAT_ID }}
+      continue-on-error: true
 
     - name: Upload logs on failure
       if: failure()
-      uses: actions/upload-artifact@v4  # Updated to v4
+      uses: actions/upload-artifact@v4
       with:
         name: workflow-logs
         path: |
           ~/.cache/pip
           ${{ github.workspace }}/*.log
+          ${{ github.workspace }}/output.log
