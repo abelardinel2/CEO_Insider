@@ -1,6 +1,10 @@
 {
-  "top_buys": 0,
-  "top_sells": 0,
-  "total_buys": 0,
-  "total_sells": 0
+  "tickers": {
+    "PFE": {"buys": 0, "sells": 0, "alerts": []},
+    "QUBT": {"buys": 0, "sells": 0, "alerts": []},
+    "WMT": {"buys": 0, "sells": 0, "alerts": []},
+    // Add all watchlist tickers here
+    ...
+  },
+  "last_updated": "2025-07-03T00:42:00Z"
 }
