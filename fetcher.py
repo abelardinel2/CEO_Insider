@@ -12,7 +12,7 @@ def fetch_watchlist_filings():
 
         url = f"https://data.sec.gov/submissions/CIK{cik}.json"
         headers = {
-            "User-Agent": "your.email@example.com"  # ✅ replace with yours
+            "User-Agent": "contact@oriadawn.xyz"  # ✅ replace with yours
         }
 
         try:
