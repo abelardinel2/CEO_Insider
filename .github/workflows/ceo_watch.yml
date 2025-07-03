@@ -3,7 +3,7 @@ name: CEO Watch
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 12 * * *'
+    - cron: '0 12 * * *'  # runs daily
 
 jobs:
   ceo_watch:
@@ -20,11 +20,8 @@ jobs:
     - name: Install dependencies
       run: pip install -r requirements.txt
 
-    - name: Fetch CIKs
-      run: python fetch_watchlist_ciks.py
-
     - name: Run CEO Watch
-      run: python ceo_watch.py
+      run: python main.py
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
