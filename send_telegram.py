@@ -19,4 +19,6 @@ def send_alert(message: str):
     }
     response = requests.post(url, json=payload)
     if not response.ok:
-        print(f"Failed to send Telegram message: {response.text}")
+        print(f"❌ Failed to send Telegram message: {response.text}")
+    else:
+        print(f"✅ Sent: {message}")
