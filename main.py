@@ -9,7 +9,12 @@ print(f"✅ Found {len(urls)} fresh Form 4s to check.")
 
 # 2️⃣ Loop through each Form 4 URL
 for url in urls:
-    result = parse_form4_xml(url)
+    try:
+        result = parse_form4_xml(url)
+    except Exception as e:
+        print(f"❌ Skipping broken URL: {url} — {e}")
+        continue
+
     if not result:
         continue  # Skip if date is too old or no P/S
 
