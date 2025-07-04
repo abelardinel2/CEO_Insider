@@ -7,11 +7,6 @@ HEADERS = {
 }
 
 def get_recent_form4_urls():
-    """
-    ✅ This is what `main.py` imports.
-    Pulls the watchlist → checks SEC → returns fresh `.xml` Form 4 links
-    for the last 7 days only.
-    """
     with open("cik_watchlist.json", "r") as f:
         cik_data = json.load(f)
 
@@ -41,7 +36,6 @@ def get_recent_form4_urls():
                     today = datetime.utcnow().date()
 
                     if (today - filing_dt).days <= 7:
-                        # ✅ Make direct .xml link
                         accession_clean = accessions[idx].replace("-", "")
                         link = (
                             f"https://www.sec.gov/Archives/edgar/data/"
@@ -54,10 +48,3 @@ def get_recent_form4_urls():
 
     print(f"✅ Total recent Form 4 XMLs: {len(urls)}")
     return urls
-
-
-if __name__ == "__main__":
-    # Optional manual run: show what you'd get
-    links = get_recent_form4_urls()
-    for l in links:
-        print(l)
