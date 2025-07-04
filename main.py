@@ -2,12 +2,9 @@ from fetcher import get_recent_form4_urls
 from parser import parse_form4_xml
 from send_telegram import send_to_telegram
 
-# 1️⃣ Get fresh Form 4 XML URLs
 urls = get_recent_form4_urls()
-
 print(f"✅ Found {len(urls)} fresh Form 4s to check.")
 
-# 2️⃣ Loop through each Form 4 URL
 for url in urls:
     try:
         result = parse_form4_xml(url)
@@ -16,7 +13,7 @@ for url in urls:
         continue
 
     if not result:
-        continue  # Skip if date is too old or no P/S
+        continue
 
     msg = ""
 
