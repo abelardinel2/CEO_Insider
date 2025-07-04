@@ -1,6 +1,6 @@
 from fetcher import get_recent_form4_urls
 from parser import parse_form4_xml
-from telegram_sender import send_alert
+from send_telegram import send_alert
 
 def main():
     urls = get_recent_form4_urls()
