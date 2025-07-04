@@ -2,31 +2,30 @@ name: CEO Insider Watch
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Runs every 6 hours, adjust as needed
-  workflow_dispatch:       # Allows you to run it manually too
+    - cron: '0 12 * * *'
+  workflow_dispatch:
 
 jobs:
   run-ceo-insider:
     runs-on: ubuntu-latest
 
     env:
-      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
     steps:
-      - name: 📥 Checkout code
+      - name: 📥 Checkout
         uses: actions/checkout@v3
 
-      - name: 🐍 Set up Python
+      - name: 🐍 Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
       - name: 📦 Install dependencies
         run: |
-          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: ⚙️ Run CEO Insider Watch
+      - name: ⚡ Run CEO Insider Watch
         run: |
           python main.py
