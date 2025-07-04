@@ -9,7 +9,7 @@ def send_alert(ticker, owner, trade_type, amount, bias, link):
         f"📢 Insider Alert: {ticker}\n"
         f"👤 Insider: {owner}\n"
         f"Type: {trade_type}\n"
-        f"Amount: {amount:,.0f} shares\n"
+        f"Amount: {amount:,} shares\n"
         f"Bias: {bias}\n"
         f"Link: {link}"
     )
@@ -20,4 +20,4 @@ def send_alert(ticker, owner, trade_type, amount, bias, link):
     if response.status_code == 200:
         print(f"✅ Alert sent for {ticker}")
     else:
-        print(f"❌ Telegram failed: {response.text}")
+        print(f"❌ Failed to send alert: {response.text}")
