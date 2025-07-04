@@ -1,31 +1,23 @@
-import json
-import fetcher
-import send_telegram
-from datetime import datetime
+from fetcher import get_recent_form4_urls  # your own function
+from send_telegram import send_to_telegram
+from parser import parse_form4_xml  # new: put parse logic in parser.py
 
-def main():
-    try:
-        # Fetch and update insider_flow.json
-        fetcher.fetch_watchlist_filings()
+# 1️⃣ Get your URLs
+urls = get_recent_form4_urls()  # make sure this respects your cik_watchlist.json
 
-        # Load updated insider_flow.json
-        with open("insider_flow.json", "r") as f:
-            data = json.load(f)
+# 2️⃣ Loop through
+for url in urls:
+    result = parse_form4_xml(url)
+    if not result:
+        continue
 
-        # Loop tickers & send alerts
-        for ticker, info in data["tickers"].items():
-            for alert in info.get("alerts", []):
-                owner = alert.get("owner", "Insider")
-                trade_type = alert.get("type")
-                amount = alert.get("amount_buys", 0)
-                link = alert.get("link")
-                bias = "🤑💰 Insider Accumulation" if trade_type == "Buy" else "💩🚽 Dumping"
-                send_telegram.send_alert(ticker, owner, trade_type, amount, bias, link)
+    msg = ""
+    if result["buys_shares"] > 0:
+        msg += f"🟢 *Insider Buy Alert*\nDate: {result['date']}\nShares: {result['buys_shares']:.0f}\nValue: ${result['buys_value']:.2f}\n"
 
-    except Exception as e:
-        print(f"❌ Unexpected error: {e}")
-        with open("output.log", "a") as f:
-            f.write(f"{datetime.now()} - Unexpected error: {e}\n")
+    if result["sells_shares"] > 0:
+        msg += f"🔴 *Insider Sell Alert*\nDate: {result['date']}\nShares: {result['sells_shares']:.0f}\nValue: ${result['sells_value']:.2f}\n"
 
-if __name__ == "__main__":
-    main()
+    if msg:
+        msg += f"\n[View Filing]({url})"
+        send_to_telegram(msg)
