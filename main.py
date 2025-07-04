@@ -1,21 +1,13 @@
-import json
-from fetcher import get_recent_form4_urls
-from parser import parse_form4
-from send_telegram import send_alert  # ✅ Correct local import
+from send_telegram import send_alert
+from parser import parse_urls
 
 def main():
-    urls = get_recent_form4_urls()
-    if not urls:
-        print("No fresh Form 4 URLs found.")
-        return
-
-    for url in urls:
-        try:
-            result = parse_form4(url)
-            if result:
-                send_alert(result)
-        except Exception as e:
-            print(f"Error processing {url}: {e}")
+    urls = parse_urls()
+    if urls:
+        for url in urls:
+            send_alert(f"🔔 New Form 4 Alert: {url}")
+    else:
+        print("✅ No new Form 4s found.")
 
 if __name__ == "__main__":
     main()
