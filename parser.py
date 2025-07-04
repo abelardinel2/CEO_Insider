@@ -4,9 +4,7 @@ from datetime import datetime, date
 
 def parse_form4_xml(url: str) -> dict:
     """
-    ✅ Handles:
-    - Direct XML (with fallback)
-    - Index HTML page
+    ✅ Fully safe Form 4 parser: handles direct .xml, fallback index, skips double-dead links.
     """
     print(f"🔍 Parsing: {url}")
 
@@ -20,17 +18,15 @@ def parse_form4_xml(url: str) -> dict:
 
     if url.endswith(".xml"):
         xml_soup = fetch_and_parse_xml(url)
-
         if xml_soup is None or not xml_soup.find("periodOfReport"):
-            print(f"❌ Direct XML failed, fallback to index: {url}")
-            # fallback: treat as index
+            print(f"❌ Direct XML failed, fallback to index")
             url = url.replace(".xml", "-index.htm")
 
     if not xml_soup:
-        # treat as index page
         resp = requests.get(url, timeout=10)
         if resp.status_code != 200:
-            raise Exception(f"Failed to fetch index page {url}")
+            print(f"❌ Skipping: index page missing too: {url}")
+            return None
 
         soup = BeautifulSoup(resp.text, "html.parser")
         xml_link = None
@@ -41,17 +37,19 @@ def parse_form4_xml(url: str) -> dict:
                 break
 
         if not xml_link:
-            raise Exception(f"No .xml link found in index page {url}")
+            print(f"❌ Skipping: no .xml in index {url}")
+            return None
 
         base = "/".join(url.split("/")[:-1])
         xml_url = f"{base}/{xml_link}"
-        print(f"✅ Found XML: {xml_url}")
+        print(f"✅ Found real XML: {xml_url}")
 
         xml_soup = fetch_and_parse_xml(xml_url)
         if xml_soup is None:
-            raise Exception(f"Failed to fetch fallback XML {xml_url}")
+            print(f"❌ Skipping: fallback XML failed too: {xml_url}")
+            return None
 
-    # ✅ Now parse
+    # ✅ Parse
     period_node = xml_soup.find("periodOfReport")
     if not period_node:
         return None
@@ -60,19 +58,15 @@ def parse_form4_xml(url: str) -> dict:
     if (date.today() - filing_dt).days > 7:
         return None
 
-    total_buys_shares = 0
-    total_buys_value = 0.0
-    total_sells_shares = 0
-    total_sells_value = 0.0
+    total_buys_shares = total_sells_shares = 0
+    total_buys_value = total_sells_value = 0
 
     for txn in xml_soup.find_all("nonDerivativeTransaction"):
         code = txn.transactionCode.string if txn.transactionCode else ""
-        amount_node = txn.find("transactionShares")
-        price_node = txn.find("transactionPricePerShare")
-        amount = float(amount_node.value.string) if amount_node and amount_node.value else 0
-        price = float(price_node.value.string) if price_node and price_node.value else 0
+        amount = float(txn.find("transactionShares").value.string or 0) if txn.find("transactionShares") else 0
+        price = float(txn.find("transactionPricePerShare").value.string or 0) if txn.find("transactionPricePerShare") else 0
 
-        if code in ["P", "M", "C", "A"]:
+        if code in ["P", "A", "M", "C"]:
             total_buys_shares += amount
             total_buys_value += amount * price
         elif code == "S":
@@ -81,12 +75,10 @@ def parse_form4_xml(url: str) -> dict:
 
     for txn in xml_soup.find_all("derivativeTransaction"):
         code = txn.transactionCode.string if txn.transactionCode else ""
-        amount_node = txn.find("transactionShares")
-        price_node = txn.find("transactionPricePerShare")
-        amount = float(amount_node.value.string) if amount_node and amount_node.value else 0
-        price = float(price_node.value.string) if price_node and price_node.value else 0
+        amount = float(txn.find("transactionShares").value.string or 0) if txn.find("transactionShares") else 0
+        price = float(txn.find("transactionPricePerShare").value.string or 0) if txn.find("transactionPricePerShare") else 0
 
-        if code in ["P", "M", "C", "A"]:
+        if code in ["P", "A", "M", "C"]:
             total_buys_shares += amount
             total_buys_value += amount * price
         elif code == "S":
@@ -96,7 +88,7 @@ def parse_form4_xml(url: str) -> dict:
     net_shares = total_buys_shares - total_sells_shares
     net_value = total_buys_value - total_sells_value
 
-    print(f"✅ Buys: {total_buys_shares} | Sells: {total_sells_shares} | Net: {net_shares}")
+    print(f"✅ Done: buys={total_buys_shares} sells={total_sells_shares} net={net_shares}")
     return {
         "date": filing_dt.isoformat(),
         "buys_shares": total_buys_shares,
