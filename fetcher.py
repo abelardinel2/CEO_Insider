@@ -1,62 +1,64 @@
+import os
 import json
 import requests
 from datetime import datetime
 
-# Load CIK map from your local JSON
-with open("cik_watchlist.json", "r") as f:
-    CIK_WATCHLIST = json.load(f)
+def fetch_watchlist_filings():
+    headers = {
+        "User-Agent": "Mozilla/5.0 OriaBot (contact@oriadawn.xyz)"
+    }
 
-HEADERS = {
-    "User-Agent": "contact@oriadawn.xyz CEO_InsiderBot/1.0",
-    "Accept-Encoding": "gzip, deflate",
-    "Host": "www.sec.gov"
-}
+    # Load your CIK watchlist
+    with open("cik_watchlist.json", "r") as f:
+        cik_data = json.load(f)
 
-def fetch_and_update_insider_flow():
     trades = {
-        "tickers": {ticker: {"buys": 0, "sells": 0, "alerts": []} for ticker in CIK_WATCHLIST},
+        "tickers": {},
         "last_updated": datetime.utcnow().isoformat() + "Z"
     }
 
-    for ticker, cik in CIK_WATCHLIST.items():
-        cik_str = str(cik).zfill(10)
-        url = f"https://data.sec.gov/submissions/CIK{cik_str}.json"
+    for _, info in cik_data.items():
+        cik = str(info["cik_str"]).zfill(10)
+        ticker = info["ticker"]
+
+        url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+        print(f"Fetching {ticker}: {url}")
 
         try:
-            response = requests.get(url, headers=HEADERS, timeout=10)
+            response = requests.get(url, headers=headers, timeout=10)
             response.raise_for_status()
             data = response.json()
 
             recent = data.get("filings", {}).get("recent", {})
-            forms = recent.get("form", [])
-            accessions = recent.get("accessionNumber", [])
-            report_dates = recent.get("reportDate", [])
+            form_types = recent.get("form", [])
 
-            for form, accession, report_date in zip(forms, accessions, report_dates):
-                if form != "4":
-                    continue
+            buys = sells = 0
+            alerts = []
 
-                link = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession.replace('-', '')}/index.htm"
+            for idx, form_type in enumerate(form_types):
+                if form_type == "4":
+                    transaction = {
+                        "date": recent["filingDate"][idx],
+                        "link": f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{recent['accessionNumber'][idx].replace('-', '')}/{recent['accessionNumber'][idx]}-index.htm",
+                        "type": "Buy",
+                        "amount_buys": 1000,  # Replace with real parsed value if needed
+                        "amount_sells": 0
+                    }
+                    buys += 1
+                    alerts.append(transaction)
 
-                trades["tickers"][ticker]["buys"] += 1  # Simple count — real share parsing later
-                trades["tickers"][ticker]["alerts"].append({
-                    "link": link,
-                    "date": report_date,
-                    "type": "Buy",
-                    "amount_buys": 1000,  # Placeholder
-                    "amount_sells": 0,
-                    "owner": "Insider"
-                })
-
-                break  # Just 1 new Form 4 per run
+            trades["tickers"][ticker] = {
+                "buys": buys,
+                "sells": sells,
+                "alerts": alerts
+            }
 
         except Exception as e:
-            print(f"❌ Error for {ticker}: {e}")
+            print(f"❌ Error fetching {ticker}: {e}")
 
     with open("insider_flow.json", "w") as f:
-        json.dump(trades, f, indent=4)
-
-    print("✅ Insider flow updated")
+        json.dump(trades, f, indent=2)
+    print("✅ insider_flow.json updated.")
 
 if __name__ == "__main__":
-    fetch_and_update_insider_flow()
+    fetch_watchlist_filings()
