@@ -7,9 +7,6 @@ HEADERS = {
 }
 
 def get_recent_form4_urls():
-    """
-    ✅ Returns a list of guaranteed -index.htm links for each fresh Form 4.
-    """
     with open("cik_watchlist.json", "r") as f:
         cik_data = json.load(f)
 
@@ -31,6 +28,7 @@ def get_recent_form4_urls():
             form_types = recent.get("form", [])
             filing_dates = recent.get("filingDate", [])
             accessions = recent.get("accessionNumber", [])
+            primary_docs = recent.get("primaryDocument", [])
 
             for idx, form_type in enumerate(form_types):
                 if form_type == "4":
@@ -40,16 +38,17 @@ def get_recent_form4_urls():
 
                     if (today - filing_dt).days <= 7:
                         accession_clean = accessions[idx].replace("-", "")
+                        primary_doc = primary_docs[idx]
                         link = (
                             f"https://www.sec.gov/Archives/edgar/data/"
-                            f"{int(cik)}/{accession_clean}/{accessions[idx]}-index.htm"
+                            f"{int(cik)}/{accession_clean}/{primary_doc}"
                         )
                         urls.append(link)
 
         except Exception as e:
             print(f"❌ Error fetching {ticker}: {e}")
 
-    print(f"✅ Total recent Form 4 Index URLs: {len(urls)}")
+    print(f"✅ Total recent Form 4 primary doc URLs: {len(urls)}")
     return urls
 
 
