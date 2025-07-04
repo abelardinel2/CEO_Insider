@@ -6,40 +6,32 @@ from datetime import datetime
 
 def main():
     try:
-        # 1️⃣ Fetch latest filings for your full watchlist:
-        fetcher.fetch_watchlist_filings()
+        # ✅ 1. Fetch & update insider_flow.json with your CIK watchlist
+        fetcher.fetch_and_update_insider_flow()
 
-        # 2️⃣ Loop over saved *_insider.json files:
-        for file in os.listdir():
-            if file.endswith("_insider.json"):
-                ticker = file.split("_")[0]
+        # ✅ 2. Load updated data
+        with open("insider_flow.json", "r") as f:
+            data = json.load(f)
 
-                with open(file, "r") as f:
-                    try:
-                        data = json.load(f)
-                        # ✅ Example: loop recent filings for Form 4s
-                        recent = data.get("filings", {}).get("recent", {})
-                        forms = recent.get("form", [])
-                        accession_numbers = recent.get("accessionNumber", [])
-                        owners = recent.get("reportingOwner", [])
-                        # Loop through and filter for Form 4
-                        for i, form in enumerate(forms):
-                            if form == "4":
-                                acc = accession_numbers[i].replace("-", "")
-                                cik = str(data.get("cik")).zfill(10)
-                                link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc}/index.json"
-                                owner = owners[i] if i < len(owners) else "Insider"
-                                send_telegram.send_alert(
-                                    ticker,
-                                    owner,
-                                    "Buy/Sell",
-                                    0,  # You can improve this with real share count if you parse it deeper!
-                                    "🤑💰 Insider Activity",
-                                    link
-                                )
+        # ✅ 3. Loop through tickers & send alerts for new buys/sells
+        for ticker, info in data["tickers"].items():
+            for alert in info.get("alerts", []):
+                owner = alert.get("owner", "Insider")
+                trade_type = alert.get("type")
+                amount = alert.get("amount_buys") if trade_type == "Buy" else alert.get("amount_sells")
+                link = alert.get("link")
+                bias = "🤑💰 Insider Accumulation" if trade_type == "Buy" else "💩🚽 Dumping"
+                send_telegram.send_alert(ticker, owner, trade_type, amount, bias, link)
 
-                    except json.JSONDecodeError:
-                        print(f"❌ {file}: Invalid JSON")
+    except FileNotFoundError as e:
+        print(f"❌ File not found - {e}")
+        with open("output.log", "a") as f:
+            f.write(f"{datetime.now()} - File error: {e}\n")
+
+    except json.JSONDecodeError as e:
+        print(f"❌ Invalid JSON - {e}")
+        with open("output.log", "a") as f:
+            f.write(f"{datetime.now()} - JSON error: {e}\n")
 
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
