@@ -1,24 +1,11 @@
-import os
-from dotenv import load_dotenv
+
 import requests
+import os
 
-load_dotenv()
-
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-
-def send_alert(message: str):
-    """
-    Send a Telegram message with the given text.
-    """
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
+def send_alert(message):
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {"chat_id": chat_id, "text": message}
     response = requests.post(url, json=payload)
-    if not response.ok:
-        print(f"❌ Failed to send Telegram message: {response.text}")
-    else:
-        print(f"✅ Sent: {message}")
+    response.raise_for_status()
