@@ -9,11 +9,6 @@ SEC_HEADERS = {"User-Agent": "OriaBot (contact@oriadawn.xyz)"}
 
 
 def parse_form4_txt(url):
-    """
-    Simple parser for a .txt Form 4.
-    Looks for transaction codes: P (Purchase), S (Sale).
-    Returns tuple: (trade_type, amount)
-    """
     try:
         response = requests.get(url, headers=SEC_HEADERS, timeout=10)
         response.raise_for_status()
@@ -61,15 +56,12 @@ def main():
                 link = alert.get("link")
                 owner = alert.get("owner", "Insider")
 
-                # Parse the .txt Form 4 to get type + shares
                 trade_type, amount = parse_form4_txt(link.replace("-index.htm", ".txt"))
 
-                # Fallback if no amount found
                 if amount == 0:
                     amount = alert.get("amount_buys", 0)
 
-                # Bias logic
-                amount_dollars = amount * 100.0  # crude estimate
+                amount_dollars = amount * 100.0
 
                 if amount_dollars >= 1_000_000:
                     bias_label = "Major Accumulation" if trade_type == "Buy" else "Major Dump"
