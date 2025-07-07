@@ -1,10 +1,23 @@
-import requests
 import os
+import requests
 
-def send_alert(message):
+def send_alert(ticker, owner, trade_type, amount, bias, link):
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
+
+    message = (
+        f"📢 Insider Alert: {ticker}\n"
+        f"👤 Insider: {owner}\n"
+        f"Type: {trade_type}\n"
+        f"Amount: {amount:,.0f} shares\n"
+        f"Bias: {bias}\n"
+        f"Link: {link}"
+    )
+
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    payload = {"chat_id": chat_id, "text": message}
-    response = requests.post(url, json=payload)
-    response.raise_for_status()
+    response = requests.post(url, data={"chat_id": chat_id, "text": message})
+
+    if response.status_code == 200:
+        print(f"✅ Alert sent for {ticker}")
+    else:
+        print(f"❌ Failed to send alert: {response.text}")
