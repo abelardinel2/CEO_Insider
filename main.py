@@ -6,8 +6,9 @@ from datetime import datetime
 
 def main():
     try:
+        # ✅ FIX: Extract "tickers" key correctly
         with open("cik_watchlist.json") as f:
-            tickers = json.load(f)
+            tickers = json.load(f)["tickers"]
 
         fetcher.fetch_and_update_insider_flow(tickers)
 
