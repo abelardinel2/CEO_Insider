@@ -1,52 +1,32 @@
-import os
 import json
 import requests
-from datetime import datetime
 
-def fetch_and_update_insider_flow():
-    # Load the JSON watchlist in the new format
-    with open("cik_watchlist.json") as f:
-        data = json.load(f)
-        watchlist = data["tickers"]
+# Load watchlist with tickers + CIKs
+with open("cik_watchlist.json") as f:
+    watchlist = json.load(f)
 
-    print("✅ Loaded watchlist with", len(watchlist), "tickers")
+results = {}
 
-    # Example loop to show CIKs
-    for ticker, entry in watchlist.items():
-        cik = entry["cik"]
-        print(f"Processing {ticker} with CIK {cik}")
+for ticker, info in watchlist["tickers"].items():
+    cik = info["cik"]
+    print(f"Processing {ticker} with CIK {cik}")
 
-        # 👇 Example: You could fetch filings for this CIK
-        # This is a placeholder URL pattern — adjust as needed:
-        filings_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type=4&owner=include&count=10"
+    url = f"https://data.sec.gov/submissions/CIK{str(cik).zfill(10)}.json"
 
-        headers = {
-            "User-Agent": "Oria Dawn Insider Bot (contact@oriadawn.xyz)",
-            "Accept": "application/xml"
-        }
+    headers = {"User-Agent": "contact@oriadawn.xyz"}
+    response = requests.get(url, headers=headers)
 
-        try:
-            resp = requests.get(filings_url, headers=headers, timeout=10)
-            resp.raise_for_status()
-            print(f"✅ Got response for {ticker} ({cik})")
+    if response.status_code == 200:
+        print(f"✅ Got response for {ticker} ({cik})")
+        results[ticker] = info
+        results[ticker]["latest_filings"] = response.json()
+    else:
+        print(f"❌ Error fetching {ticker}: {response.status_code}")
 
-            # Here you would parse the XML or RSS content
-            # Example placeholder:
-            # parsed = parse_form4_xml(resp.text)
+# ✅ Wrap the final output under "tickers"
+final_data = {"tickers": results}
 
-            # For now just log:
-            print(f"Fetched data length: {len(resp.text)} chars")
+with open("insider_flow.json", "w") as f:
+    json.dump(final_data, f, indent=2)
 
-        except requests.RequestException as e:
-            print(f"❌ Failed to fetch for {ticker}: {e}")
-
-    # Example: Save an updated timestamp file to show that it ran
-    result = {
-        "last_checked": datetime.utcnow().isoformat() + "Z"
-    }
-    with open("insider_flow.json", "w") as f:
-        json.dump(result, f, indent=2)
-    print("✅ Wrote insider_flow.json with timestamp.")
-
-if __name__ == "__main__":
-    fetch_and_update_insider_flow()
+print("✅ Wrote insider_flow.json")
