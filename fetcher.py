@@ -37,7 +37,6 @@ def fetch_and_update_insider_flow(tickers):
                             "amount_buys": 1000,
                             "link": link
                         }
-                        # ✅ avoid duplicates
                         if alert not in alerts:
                             alerts.append(alert)
 

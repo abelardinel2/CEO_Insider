@@ -14,7 +14,6 @@ def main():
         with open("insider_flow.json") as f:
             data = json.load(f)
 
-        # ✅ Only send unsent alerts
         for ticker, info in data["tickers"].items():
             alerts = info.get("alerts", [])
             if alerts:
@@ -25,10 +24,8 @@ def main():
                     link = alert.get("link")
                     bias = "🤑💰 Insider Accumulation" if trade_type == "Buy" else "💩🚽 Insider Dump"
                     send_telegram.send_alert(ticker, owner, trade_type, amount, bias, link)
-                # ✅ After sending, clear alerts so we don’t resend next run
                 info["alerts"] = []
 
-        # ✅ Save cleared alerts back
         with open("insider_flow.json", "w") as f:
             json.dump(data, f, indent=2)
 
