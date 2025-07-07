@@ -6,14 +6,20 @@ from datetime import datetime
 
 def main():
     try:
-        # ✅ 1. Run fetcher first
-        fetcher.fetch_and_update_insider_flow()
+        # ✅ 1. Load your CIK watchlist (must be cik_watchlist.json)
+        with open("cik_watchlist.json") as f:
+            data = json.load(f)
 
-        # ✅ 2. Load updated insider_flow.json
+        tickers = data["tickers"]
+
+        # ✅ 2. Fetch fresh data and update insider_flow.json
+        fetcher.fetch_and_update_insider_flow(tickers)
+
+        # ✅ 3. Load the updated insider_flow.json
         with open("insider_flow.json") as f:
             data = json.load(f)
 
-        # ✅ 3. Loop tickers → alerts
+        # ✅ 4. Loop over tickers → send alerts if any
         for ticker, info in data["tickers"].items():
             for alert in info.get("alerts", []):
                 owner = alert.get("owner", "Insider")
