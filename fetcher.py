@@ -1,7 +1,7 @@
 import requests
 import json
-from bs4 import BeautifulSoup
-from parse_form4_xml import parse_form4_xml
+from lxml import etree
+from datetime import datetime
 
 SEC_HEADERS = {"User-Agent": "contact@oriadawn.xyz"}
 
@@ -12,60 +12,78 @@ def fetch_and_update_insider_flow(tickers):
         cik = details["cik"]
         print(f"🔍 Processing {ticker} with CIK {cik}")
 
-        url = f"https://data.sec.gov/submissions/CIK{str(cik).zfill(10)}.json"
+        submissions_url = f"https://data.sec.gov/submissions/CIK{str(cik).zfill(10)}.json"
         try:
-            response = requests.get(url, headers=SEC_HEADERS)
-            response.raise_for_status()
-            data = response.json()
+            resp = requests.get(submissions_url, headers=SEC_HEADERS, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+
+            recent = data.get("filings", {}).get("recent", {})
+            forms = recent.get("form", [])
+            accession_numbers = recent.get("accessionNumber", [])
+            filing_dates = recent.get("filingDate", [])
 
             alerts = []
-            recent_filings = data.get("filings", {}).get("recent", {})
-            forms = recent_filings.get("form", [])
-            accession_numbers = recent_filings.get("accessionNumber", [])
+            seen = set()
 
-            for form, acc_num in zip(forms, accession_numbers):
+            for form, acc_num, filing_date in zip(forms, accession_numbers, filing_dates):
                 if form == "4":
-                    accession_clean = acc_num.replace("-", "")
-                    index_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_clean}/{acc_num}-index.htm"
+                    filing_dt = datetime.strptime(filing_date, "%Y-%m-%d").date()
+                    if (datetime.utcnow().date() - filing_dt).days > 7:
+                        continue
+
+                    index_url = (
+                        f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_num.replace('-', '')}/{acc_num}-index.htm"
+                    )
+                    xml_url = (
+                        f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_num.replace('-', '')}/"
+                        f"form4_{acc_num.replace('-', '')}.xml"
+                    )
                     print(f"🔗 Found Form 4 index: {index_url}")
+                    print(f"📄 Fetching XML: {xml_url}")
 
-                    index_page = requests.get(index_url, headers=SEC_HEADERS).text
-                    soup = BeautifulSoup(index_page, "html.parser")
-
-                    xml_link = None
-                    for a in soup.find_all("a", href=True):
-                        if a["href"].endswith(".xml"):
-                            xml_link = "https://www.sec.gov" + a["href"]
-                            break
-
-                    if xml_link:
-                        print(f"📄 Fetching XML: {xml_link}")
-                        xml_response = requests.get(xml_link, headers=SEC_HEADERS)
-                        xml_response.raise_for_status()
-
-                        parsed = parse_form4_xml(xml_response.text)
-
-                        alert = {
-                            "owner": parsed["reporting_owner"],
-                            "type": "Buy" if parsed["transaction_code"] == "P" else "Sell",
-                            "amount_buys": parsed["transaction_shares"],
-                            "price_per_share": parsed["price_per_share"],
-                            "link": index_url,
-                            "xml_link": xml_link
-                        }
-                        alerts.append(alert)
+                    xml_resp = requests.get(xml_url, headers=SEC_HEADERS, timeout=10)
+                    if xml_resp.status_code == 200:
+                        try:
+                            owner, shares = parse_form4_xml(xml_resp.text)
+                            if acc_num not in seen:
+                                alerts.append({
+                                    "owner": owner,
+                                    "type": "Buy",
+                                    "amount_buys": shares,
+                                    "link": index_url
+                                })
+                                seen.add(acc_num)
+                        except Exception as e:
+                            print(f"❌ Error parsing XML for {ticker}: {e}")
+                    else:
+                        print(f"❌ XML not found for {ticker}: {xml_url}")
 
             updated[ticker] = {
                 "cik": cik,
-                "buys": sum(1 for a in alerts if a["type"] == "Buy"),
-                "sells": sum(1 for a in alerts if a["type"] == "Sell"),
+                "buys": len(alerts),
+                "sells": 0,
                 "alerts": alerts
             }
 
         except Exception as e:
             print(f"❌ Error fetching {ticker}: {e}")
 
-    # ✅ Save final JSON
     with open("insider_flow.json", "w") as f:
         json.dump({"tickers": updated}, f, indent=2)
-    print("✅ insider_flow.json updated with XML data")
+    print("✅ insider_flow.json updated with deduped alerts")
+
+def parse_form4_xml(xml_content):
+    parser = etree.XMLParser(recover=True)
+    root = etree.fromstring(xml_content.encode(), parser=parser)
+
+    ns = {"ns": root.nsmap[None]} if None in root.nsmap else {}
+
+    def find_text(xpath):
+        result = root.xpath(xpath, namespaces=ns)
+        return result[0].text.strip() if result else "N/A"
+
+    owner = find_text(".//reportingOwner/reportingOwnerId/rptOwnerName")
+    shares = find_text(".//nonDerivativeTable/nonDerivativeTransaction/transactionAmounts/transactionShares/value")
+
+    return owner, shares
