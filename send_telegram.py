@@ -1,7 +1,7 @@
 import os
 import requests
 
-def send_alert(ticker, owner, trade_type, amount, bias, link):
+def send_alert(ticker, owner, trade_type, shares, bias, link):
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
@@ -9,7 +9,7 @@ def send_alert(ticker, owner, trade_type, amount, bias, link):
         f"📢 Insider Alert: {ticker}\n"
         f"👤 Insider: {owner}\n"
         f"Type: {trade_type}\n"
-        f"Amount: ${amount:,.0f}\n"
+        f"Amount: {shares:,.0f} shares\n"
         f"Bias: {bias}\n"
         f"Link: {link}"
     )
