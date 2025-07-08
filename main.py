@@ -15,7 +15,7 @@ def parse_form4_txt(url):
         text = response.text
 
         lines = text.splitlines()
-        amount = 0
+        total_shares = 0
         trade_type = "Unknown"
 
         for line in lines:
@@ -25,16 +25,18 @@ def parse_form4_txt(url):
                     trade_type = "Buy"
                 elif "S" in line:
                     trade_type = "Sell"
+
             if "Transaction Shares" in line:
                 parts = line.split()
                 for part in parts:
                     try:
-                        amount = float(part.replace(",", ""))
+                        shares = float(part.replace(",", ""))
+                        total_shares += shares
                         break
                     except ValueError:
                         continue
 
-        return trade_type, amount
+        return trade_type, total_shares
 
     except Exception as e:
         print(f"❌ Failed to parse TXT Form 4: {e}")
@@ -56,19 +58,9 @@ def main():
                 link = alert.get("link")
                 owner = alert.get("owner", "Insider")
 
-                trade_type, amount = parse_form4_txt(link.replace("-index.htm", ".txt"))
+                trade_type, amount = parse_form4_txt(link)
 
-                if amount == 0:
-                    amount = alert.get("amount_buys", 0)
-
-                # ✅ Use estimated price per share for dollars
-                estimated_share_price = 100.0
-                amount_dollars = amount * estimated_share_price
-
-                print(f"Parsed TXT: {ticker} | {trade_type} | {amount} shares ≈ ${amount_dollars:,.0f}")
-
-                if amount == 0 or trade_type == "Unknown":
-                    continue
+                amount_dollars = amount * 100.0
 
                 if amount_dollars >= 1_000_000:
                     bias_label = "Major Accumulation" if trade_type == "Buy" else "Major Dump"
