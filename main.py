@@ -1,9 +1,11 @@
 import os
 import json
+import requests
+from datetime import datetime
+
 import fetcher
 import send_telegram
 from parse_form4_txt import parse_form4_txt
-from datetime import datetime
 
 def main():
     try:
@@ -21,20 +23,20 @@ def main():
                 owner = alert.get("owner", "Insider")
 
                 trade_type, amount = parse_form4_txt(link)
-                if trade_type == "Unknown" or amount == 0:
-                    continue  # Skip irrelevant or unparseable
 
-                # Estimate dollar amount: assume ~$100 fallback
-                amount_dollars = amount * 100
+                if trade_type == "Unknown" or amount <= 0:
+                    continue  # Skip non-P/S
 
-                if amount_dollars >= 1_000_000:
+                dollar_value = amount * 100.0  # Assumption
+
+                if dollar_value >= 1_000_000:
                     bias = "🚀💎🙌 Major Accumulation" if trade_type == "Buy" else "🔥💩🚽 Major Dump"
-                elif amount_dollars >= 500_000:
+                elif dollar_value >= 500_000:
                     bias = "💰💎🤑 Significant Accumulation" if trade_type == "Buy" else "💰🚽⚡️ Significant Dump"
-                elif amount_dollars >= 200_000:
-                    bias = "📈🤑 Notable Accumulation" if trade_type == "Buy" else "📉🚪 Notable Sell"
+                elif dollar_value >= 200_000:
+                    bias = "📈🤑 Notable Buy" if trade_type == "Buy" else "📉🚪 Notable Sell"
                 else:
-                    bias = "💵🧩 Normal Accumulation" if trade_type == "Buy" else "💵📤 Normal Sell"
+                    bias = "💵🧩 Normal Buy" if trade_type == "Buy" else "💵📤 Normal Sell"
 
                 send_telegram.send_alert(ticker, owner, trade_type, amount, bias, link)
 
