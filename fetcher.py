@@ -26,7 +26,10 @@ def fetch_and_update_insider_flow(tickers):
 
             for form, acc_num, owner in zip(forms, accession_numbers, owners):
                 if form == "4":
-                    link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_num.replace('-', '')}/{acc_num}.txt"
+                    link = (
+                        f"https://www.sec.gov/Archives/edgar/data/"
+                        f"{cik}/{acc_num.replace('-', '')}/{acc_num}.txt"
+                    )
                     alert = {
                         "owner": owner,
                         "type": "Unknown",
