@@ -1,39 +1,40 @@
 import requests
-import xml.etree.ElementTree as ET
+from bs4 import BeautifulSoup
+from lxml import etree
 
 SEC_HEADERS = {"User-Agent": "OriaBot (contact@oriadawn.xyz)"}
 
-def parse_form4_txt(txt_url):
+
+def parse_form4_txt(url):
     try:
-        response = requests.get(txt_url, headers=SEC_HEADERS, timeout=10)
+        response = requests.get(url, headers=SEC_HEADERS, timeout=10)
         response.raise_for_status()
-        raw = response.text
+        text = response.text
 
-        start = raw.find("<XML>")
-        end = raw.find("</XML>")
-        if start == -1 or end == -1:
-            print(f"❌ No XML block in {txt_url}")
-            return "Unknown", 0
+        # Try to extract embedded XML inside TXT
+        if "<XML>" in text:
+            xml_start = text.index("<XML>") + len("<XML>")
+            xml_content = text[xml_start:]
+            xml_content = xml_content.strip().split("</XML>")[0]
 
-        xml_content = raw[start:end+6]
-        root = ET.fromstring(xml_content)
+            root = etree.fromstring(xml_content.encode())
 
-        code = root.findtext(".//transactionCoding/transactionCode", default="").strip().upper()
-        amount = root.findtext(".//transactionAmounts/transactionShares/value", default="0").strip()
+            code = root.findtext(".//transactionCode")
+            shares = root.findtext(".//transactionShares/value")
+            price = root.findtext(".//transactionPricePerShare/value")
 
-        try:
-            amount = float(amount)
-        except:
-            amount = 0
-
-        if code in ["P", "S"]:
-            trade_type = "Buy" if code == "P" else "Sell"
-        else:
             trade_type = "Unknown"
+            if code == "P":
+                trade_type = "Buy"
+            elif code == "S":
+                trade_type = "Sell"
 
-        print(f"✅ Parsed: {code} | {amount} => {trade_type}")
-        return trade_type, amount
+            shares = float(shares) if shares else 0
+            price = float(price) if price else 0
+
+            return trade_type, shares, price
 
     except Exception as e:
-        print(f"❌ Parser error: {e}")
-        return "Unknown", 0
+        print(f"❌ parse_form4_txt error: {e}")
+
+    return "Unknown", 0, 0
