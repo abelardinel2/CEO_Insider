@@ -3,54 +3,43 @@ import json
 import fetcher
 import send_telegram
 import requests
-import re
 from datetime import datetime
 
 SEC_HEADERS = {"User-Agent": "OriaBot (contact@oriadawn.xyz)"}
 
 def parse_form4_txt(url):
     try:
-        response = requests.get(url, headers=SEC_HEADERS, timeout=10)
+        # Replace index link with .txt version
+        txt_url = url.replace("-index.htm", ".txt")
+        response = requests.get(txt_url, headers=SEC_HEADERS, timeout=10)
         response.raise_for_status()
         text = response.text
 
         lines = text.splitlines()
-
+        amount = 0
         trade_type = "Unknown"
-        shares = 0
-        price = 0.0
-
-        in_table = False
 
         for line in lines:
             line = line.strip()
-            if not line:
-                continue
-
-            if "Transaction Code" in line:
-                in_table = True
-                continue
-
-            if in_table:
-                parts = re.split(r'\s+', line)
-                if len(parts) >= 4:
-                    code = parts[1].strip()
-                    amt = parts[2].replace(",", "")
-                    prc = parts[3]
-
-                    if code in ["P", "S"]:
-                        trade_type = "Buy" if code == "P" else "Sell"
-                        shares = float(amt)
-                        price = float(prc)
+            if line.startswith("Transaction Code"):
+                if "P" in line:
+                    trade_type = "Buy"
+                elif "S" in line:
+                    trade_type = "Sell"
+            if "Transaction Shares" in line:
+                parts = line.split()
+                for part in parts:
+                    try:
+                        amount = float(part.replace(",", ""))
                         break
+                    except ValueError:
+                        continue
 
-        dollar_value = shares * price
-        return trade_type, dollar_value, shares
+        return trade_type, amount
 
     except Exception as e:
-        print(f"❌ TXT Parse error: {e}")
-        return "Unknown", 0, 0
-
+        print(f"❌ Failed to parse TXT Form 4: {e}")
+        return "Unknown", 0
 
 def main():
     try:
@@ -67,19 +56,20 @@ def main():
                 link = alert.get("link")
                 owner = alert.get("owner", "Insider")
 
-                txt_link = link.replace("-index.htm", ".txt")
-                trade_type, dollar_value, shares = parse_form4_txt(txt_link)
+                trade_type, amount = parse_form4_txt(link)
 
-                if trade_type == "Unknown" or shares == 0:
-                    continue
+                if amount == 0:
+                    continue  # Skip if no valid amount
 
-                if dollar_value >= 1_000_000:
+                amount_dollars = amount * 100.0
+
+                if amount_dollars >= 1_000_000:
                     bias_label = "Major Accumulation" if trade_type == "Buy" else "Major Dump"
                     bias_emoji = "🚀💎🙌" if trade_type == "Buy" else "🔥💩🚽"
-                elif dollar_value >= 500_000:
+                elif amount_dollars >= 500_000:
                     bias_label = "Significant Accumulation" if trade_type == "Buy" else "Significant Dump"
                     bias_emoji = "💰💎🤑" if trade_type == "Buy" else "💰🚽⚡️"
-                elif dollar_value >= 200_000:
+                elif amount_dollars >= 200_000:
                     bias_label = "Notable Accumulation" if trade_type == "Buy" else "Notable Sell"
                     bias_emoji = "📈🤑" if trade_type == "Buy" else "📉🚪"
                 else:
@@ -88,11 +78,10 @@ def main():
 
                 bias = f"{bias_emoji} {bias_label}"
 
-                send_telegram.send_alert(ticker, owner, trade_type, shares, bias, link)
+                send_telegram.send_alert(ticker, owner, trade_type, amount, bias, link)
 
     except Exception as e:
         print(f"❌ Main error: {e}")
-
 
 if __name__ == "__main__":
     main()
