@@ -14,8 +14,8 @@ def fetch_and_update_insider_flow(tickers):
         try:
             response = requests.get(url, headers=SEC_HEADERS)
             response.raise_for_status()
-
             data = response.json()
+
             recent_filings = data.get("filings", {}).get("recent", {})
             forms = recent_filings.get("form", [])
             accession_numbers = recent_filings.get("accessionNumber", [])
@@ -25,12 +25,8 @@ def fetch_and_update_insider_flow(tickers):
 
             for form, acc_num, owner in zip(forms, accession_numbers, owners):
                 if form == "4":
-                    link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_num.replace('-', '')}/{acc_num}.txt"
-                    alert = {
-                        "owner": owner,
-                        "link": link
-                    }
-                    alerts.append(alert)
+                    link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_num.replace('-', '')}/{acc_num}-index.htm"
+                    alerts.append({"owner": owner, "link": link})
 
             updated[ticker] = {
                 "cik": cik,
