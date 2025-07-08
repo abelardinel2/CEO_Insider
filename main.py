@@ -1,11 +1,8 @@
 import os
 import json
-import requests
-from datetime import datetime
-
 import fetcher
-import send_telegram
 from parse_form4_txt import parse_form4_txt
+import send_telegram
 
 def main():
     try:
@@ -20,25 +17,25 @@ def main():
         for ticker, info in data["tickers"].items():
             for alert in info.get("alerts", []):
                 link = alert.get("link")
-                owner = alert.get("owner", "Insider")
+                txt_link = link.replace("-index.htm", ".txt")
 
-                trade_type, amount = parse_form4_txt(link)
+                trade_type, amount = parse_form4_txt(txt_link)
+                print(f"🔗 Checked {txt_link} => {trade_type} {amount}")
 
-                if trade_type == "Unknown" or amount <= 0:
-                    continue  # Skip non-P/S
+                if trade_type == "Unknown" or amount == 0:
+                    continue
 
-                dollar_value = amount * 100.0  # Assumption
-
-                if dollar_value >= 1_000_000:
-                    bias = "🚀💎🙌 Major Accumulation" if trade_type == "Buy" else "🔥💩🚽 Major Dump"
-                elif dollar_value >= 500_000:
-                    bias = "💰💎🤑 Significant Accumulation" if trade_type == "Buy" else "💰🚽⚡️ Significant Dump"
-                elif dollar_value >= 200_000:
-                    bias = "📈🤑 Notable Buy" if trade_type == "Buy" else "📉🚪 Notable Sell"
+                dollars = amount * 100.0
+                if dollars >= 1_000_000:
+                    bias = "🚀💎🙌 Major Accumulation" if trade_type == "Buy" else "🔥💩 Major Dump"
+                elif dollars >= 500_000:
+                    bias = "💰🤑 Significant Accumulation" if trade_type == "Buy" else "💰⚡️ Significant Dump"
+                elif dollars >= 200_000:
+                    bias = "📈🤑 Notable Accumulation" if trade_type == "Buy" else "📉🚪 Notable Sell"
                 else:
-                    bias = "💵🧩 Normal Buy" if trade_type == "Buy" else "💵📤 Normal Sell"
+                    bias = "💵🧩 Normal Accumulation" if trade_type == "Buy" else "💵📤 Normal Sell"
 
-                send_telegram.send_alert(ticker, owner, trade_type, amount, bias, link)
+                send_telegram.send_alert(ticker, alert["owner"], trade_type, amount, bias, link)
 
     except Exception as e:
         print(f"❌ Main error: {e}")
