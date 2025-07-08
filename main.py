@@ -15,34 +15,36 @@ def parse_form4_txt(url):
         text = response.text
 
         lines = text.splitlines()
+
         trade_type = "Unknown"
         shares = 0
-        dollar_value = 0.0
+        price = 0.0
+
+        in_table = False
 
         for line in lines:
             line = line.strip()
+            if not line:
+                continue
 
-            # Debug: print matching lines
-            if "Transaction Code" in line or "Transaction Shares" in line or "Transaction Price Per Share" in line:
-                print(f"✅ LINE: {line}")
+            if "Transaction Code" in line:
+                in_table = True
+                continue
 
-            if re.search(r"Transaction\s+Code", line):
-                if "P" in line:
-                    trade_type = "Buy"
-                elif "S" in line:
-                    trade_type = "Sell"
+            if in_table:
+                parts = re.split(r'\s+', line)
+                if len(parts) >= 4:
+                    code = parts[1].strip()
+                    amt = parts[2].replace(",", "")
+                    prc = parts[3]
 
-            if re.search(r"Transaction\s+Shares", line):
-                match = re.search(r"(\d[\d,]*)", line)
-                if match:
-                    shares = float(match.group(1).replace(",", ""))
+                    if code in ["P", "S"]:
+                        trade_type = "Buy" if code == "P" else "Sell"
+                        shares = float(amt)
+                        price = float(prc)
+                        break
 
-            if re.search(r"Transaction Price Per Share", line):
-                match = re.search(r"(\d+(\.\d+)?)", line)
-                if match:
-                    price = float(match.group(1))
-                    dollar_value = shares * price
-
+        dollar_value = shares * price
         return trade_type, dollar_value, shares
 
     except Exception as e:
@@ -65,31 +67,28 @@ def main():
                 link = alert.get("link")
                 owner = alert.get("owner", "Insider")
 
-                txt_url = link.replace("-index.htm", ".txt")
-                trade_type, dollar_value, shares = parse_form4_txt(txt_url)
+                txt_link = link.replace("-index.htm", ".txt")
+                trade_type, dollar_value, shares = parse_form4_txt(txt_link)
 
-                if trade_type == "Unknown":
-                    print(f"⚠️ SKIP {ticker}: No P/S found")
+                if trade_type == "Unknown" or shares == 0:
                     continue
 
-                amount = dollar_value if dollar_value > 0 else shares * 10  # fallback est.
-
-                if amount >= 1_000_000:
-                    label = "Major Accumulation" if trade_type == "Buy" else "Major Dump"
-                    emoji = "🚀💎🙌" if trade_type == "Buy" else "🔥💩🚽"
-                elif amount >= 500_000:
-                    label = "Significant Accumulation" if trade_type == "Buy" else "Significant Dump"
-                    emoji = "💰💎🤑" if trade_type == "Buy" else "💰🚽⚡️"
-                elif amount >= 200_000:
-                    label = "Notable Accumulation" if trade_type == "Buy" else "Notable Sell"
-                    emoji = "📈🤑" if trade_type == "Buy" else "📉🚪"
+                if dollar_value >= 1_000_000:
+                    bias_label = "Major Accumulation" if trade_type == "Buy" else "Major Dump"
+                    bias_emoji = "🚀💎🙌" if trade_type == "Buy" else "🔥💩🚽"
+                elif dollar_value >= 500_000:
+                    bias_label = "Significant Accumulation" if trade_type == "Buy" else "Significant Dump"
+                    bias_emoji = "💰💎🤑" if trade_type == "Buy" else "💰🚽⚡️"
+                elif dollar_value >= 200_000:
+                    bias_label = "Notable Accumulation" if trade_type == "Buy" else "Notable Sell"
+                    bias_emoji = "📈🤑" if trade_type == "Buy" else "📉🚪"
                 else:
-                    label = "Normal Accumulation" if trade_type == "Buy" else "Normal Sell"
-                    emoji = "💵🧩" if trade_type == "Buy" else "💵📤"
+                    bias_label = "Normal Accumulation" if trade_type == "Buy" else "Normal Sell"
+                    bias_emoji = "💵🧩" if trade_type == "Buy" else "💵📤"
 
-                bias = f"{emoji} {label}"
+                bias = f"{bias_emoji} {bias_label}"
 
-                send_telegram.send_alert(ticker, owner, trade_type, amount, bias, link)
+                send_telegram.send_alert(ticker, owner, trade_type, shares, bias, link)
 
     except Exception as e:
         print(f"❌ Main error: {e}")
