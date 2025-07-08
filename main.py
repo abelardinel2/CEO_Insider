@@ -2,44 +2,8 @@ import os
 import json
 import fetcher
 import send_telegram
-import requests
-from datetime import datetime
+from parse_form4_txt import parse_form4_txt
 
-SEC_HEADERS = {"User-Agent": "OriaBot (contact@oriadawn.xyz)"}
-
-def parse_form4_txt(url):
-    try:
-        # Replace index link with .txt version
-        txt_url = url.replace("-index.htm", ".txt")
-        response = requests.get(txt_url, headers=SEC_HEADERS, timeout=10)
-        response.raise_for_status()
-        text = response.text
-
-        lines = text.splitlines()
-        amount = 0
-        trade_type = "Unknown"
-
-        for line in lines:
-            line = line.strip()
-            if line.startswith("Transaction Code"):
-                if "P" in line:
-                    trade_type = "Buy"
-                elif "S" in line:
-                    trade_type = "Sell"
-            if "Transaction Shares" in line:
-                parts = line.split()
-                for part in parts:
-                    try:
-                        amount = float(part.replace(",", ""))
-                        break
-                    except ValueError:
-                        continue
-
-        return trade_type, amount
-
-    except Exception as e:
-        print(f"❌ Failed to parse TXT Form 4: {e}")
-        return "Unknown", 0
 
 def main():
     try:
@@ -59,7 +23,7 @@ def main():
                 trade_type, amount = parse_form4_txt(link)
 
                 if amount == 0:
-                    continue  # Skip if no valid amount
+                    continue  # skip if no valid shares
 
                 amount_dollars = amount * 100.0
 
@@ -82,6 +46,7 @@ def main():
 
     except Exception as e:
         print(f"❌ Main error: {e}")
+
 
 if __name__ == "__main__":
     main()
