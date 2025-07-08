@@ -61,7 +61,14 @@ def main():
                 if amount == 0:
                     amount = alert.get("amount_buys", 0)
 
-                amount_dollars = amount * 100.0
+                # ✅ Use estimated price per share for dollars
+                estimated_share_price = 100.0
+                amount_dollars = amount * estimated_share_price
+
+                print(f"Parsed TXT: {ticker} | {trade_type} | {amount} shares ≈ ${amount_dollars:,.0f}")
+
+                if amount == 0 or trade_type == "Unknown":
+                    continue
 
                 if amount_dollars >= 1_000_000:
                     bias_label = "Major Accumulation" if trade_type == "Buy" else "Major Dump"
