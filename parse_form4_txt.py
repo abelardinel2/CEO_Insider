@@ -3,47 +3,38 @@ import xml.etree.ElementTree as ET
 
 SEC_HEADERS = {"User-Agent": "OriaBot (contact@oriadawn.xyz)"}
 
-
-def parse_form4_txt(txt_url):
+def parse_form4_txt(url):
     try:
-        response = requests.get(txt_url, headers=SEC_HEADERS, timeout=15)
+        # Fetch the .txt content
+        response = requests.get(url.replace("-index.htm", ".txt"), headers=SEC_HEADERS, timeout=10)
         response.raise_for_status()
-        content = response.text
+        text = response.text
 
-        start = content.find("<XML>")
-        end = content.find("</XML>") + len("</XML>")
-        if start == -1 or end == -1:
-            print(f"❌ XML block not found: {txt_url}")
-            return "Unknown", 0.0, 0.0
+        # Extract <XML> ... </XML> block
+        xml_start = text.find("<XML>")
+        xml_end = text.find("</XML>")
+        if xml_start == -1 or xml_end == -1:
+            print("❌ No XML found in TXT file")
+            return "Unknown", 0
 
-        xml_content = content[start:end]
-
+        xml_content = text[xml_start + 5 : xml_end]  # +5 to skip <XML>
         root = ET.fromstring(xml_content)
 
-        node = root.find(".//nonDerivativeTransaction")
-        if node is None:
-            node = root.find(".//derivativeTransaction")
+        # Find only nonDerivative or derivative transactions
+        trade_type = "Unknown"
+        amount = 0
 
-        if node is None:
-            print(f"❌ No transaction found: {txt_url}")
-            return "Unknown", 0.0, 0.0
+        for node in root.findall(".//nonDerivativeTransaction") + root.findall(".//derivativeTransaction"):
+            code = node.findtext(".//transactionCoding/transactionCode", "").strip()
+            shares = node.findtext(".//transactionAmounts/transactionShares/value", "0").strip()
 
-        code = node.findtext(".//transactionCoding/transactionCode", default="").upper()
-        if code == "P":
-            trade_type = "Buy"
-        elif code == "S":
-            trade_type = "Sell"
-        else:
-            trade_type = "Unknown"
+            if code in ["P", "S"]:  # Only P or S
+                trade_type = "Buy" if code == "P" else "Sell"
+                amount = float(shares)
+                break  # Only the first valid one
 
-        shares = node.findtext(".//transactionAmounts/transactionShares/value", default="0")
-        price = node.findtext(".//transactionAmounts/transactionPricePerShare/value", default="0")
-
-        shares = float(shares)
-        price = float(price)
-
-        return trade_type, shares, price
+        return trade_type, amount
 
     except Exception as e:
-        print(f"❌ TXT parse error: {e}")
-        return "Unknown", 0.0, 0.0
+        print(f"❌ parse_form4_txt error: {e}")
+        return "Unknown", 0
