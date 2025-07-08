@@ -1,8 +1,10 @@
 import os
 import json
 import fetcher
-from parse_form4_txt import parse_form4_txt
 import send_telegram
+from parse_form4_txt import parse_form4_txt
+from datetime import datetime
+
 
 def main():
     try:
@@ -17,28 +19,38 @@ def main():
         for ticker, info in data["tickers"].items():
             for alert in info.get("alerts", []):
                 link = alert.get("link")
-                txt_link = link.replace("-index.htm", ".txt")
+                owner = alert.get("owner", "Insider")
 
-                trade_type, amount = parse_form4_txt(txt_link)
-                print(f"🔗 Checked {txt_link} => {trade_type} {amount}")
+                trade_type, shares, price = parse_form4_txt(link)
 
-                if trade_type == "Unknown" or amount == 0:
+                if trade_type not in ["Buy", "Sell"]:
                     continue
 
-                dollars = amount * 100.0
-                if dollars >= 1_000_000:
-                    bias = "🚀💎🙌 Major Accumulation" if trade_type == "Buy" else "🔥💩 Major Dump"
-                elif dollars >= 500_000:
-                    bias = "💰🤑 Significant Accumulation" if trade_type == "Buy" else "💰⚡️ Significant Dump"
-                elif dollars >= 200_000:
-                    bias = "📈🤑 Notable Accumulation" if trade_type == "Buy" else "📉🚪 Notable Sell"
-                else:
-                    bias = "💵🧩 Normal Accumulation" if trade_type == "Buy" else "💵📤 Normal Sell"
+                if shares == 0 or price == 0:
+                    continue
 
-                send_telegram.send_alert(ticker, alert["owner"], trade_type, amount, bias, link)
+                amount_dollars = shares * price
+
+                if amount_dollars >= 1_000_000:
+                    bias_label = "Major Accumulation" if trade_type == "Buy" else "Major Dump"
+                    bias_emoji = "🚀💎🙌" if trade_type == "Buy" else "🔥💩🚽"
+                elif amount_dollars >= 500_000:
+                    bias_label = "Significant Accumulation" if trade_type == "Buy" else "Significant Dump"
+                    bias_emoji = "💰💎🤑" if trade_type == "Buy" else "💰🚽⚡️"
+                elif amount_dollars >= 200_000:
+                    bias_label = "Notable Accumulation" if trade_type == "Buy" else "Notable Sell"
+                    bias_emoji = "📈🤑" if trade_type == "Buy" else "📉🚪"
+                else:
+                    bias_label = "Normal Accumulation" if trade_type == "Buy" else "Normal Sell"
+                    bias_emoji = "💵🧩" if trade_type == "Buy" else "💵📤"
+
+                bias = f"{bias_emoji} {bias_label}"
+
+                send_telegram.send_alert(ticker, owner, trade_type, amount_dollars, bias, link)
 
     except Exception as e:
         print(f"❌ Main error: {e}")
+
 
 if __name__ == "__main__":
     main()
