@@ -5,7 +5,6 @@ import send_telegram
 from parse_form4_txt import parse_form4_txt
 from datetime import datetime
 
-
 def main():
     try:
         with open("cik_watchlist.json") as f:
@@ -21,26 +20,26 @@ def main():
                 link = alert.get("link")
                 owner = alert.get("owner", "Insider")
 
-                trade_type, amount, price = parse_form4_txt(link)
-                if trade_type not in ["Buy", "Sell"]:
-                    continue  # skip if not valid
+                trade_type, amount = parse_form4_txt(link)
+                if trade_type == "Unknown" or amount == 0:
+                    continue  # Skip irrelevant or unparseable
 
-                amount_dollars = amount * price
+                # Estimate dollar amount: assume ~$100 fallback
+                amount_dollars = amount * 100
 
                 if amount_dollars >= 1_000_000:
-                    bias = "🚀 Major Accumulation" if trade_type == "Buy" else "🔥 Major Dump"
+                    bias = "🚀💎🙌 Major Accumulation" if trade_type == "Buy" else "🔥💩🚽 Major Dump"
                 elif amount_dollars >= 500_000:
-                    bias = "💰 Significant Accumulation" if trade_type == "Buy" else "💰 Significant Dump"
+                    bias = "💰💎🤑 Significant Accumulation" if trade_type == "Buy" else "💰🚽⚡️ Significant Dump"
                 elif amount_dollars >= 200_000:
-                    bias = "🤑 Notable Accumulation" if trade_type == "Buy" else "📉 Notable Sell"
+                    bias = "📈🤑 Notable Accumulation" if trade_type == "Buy" else "📉🚪 Notable Sell"
                 else:
-                    bias = "📊 Normal Accumulation" if trade_type == "Buy" else "📊 Normal Sell"
+                    bias = "💵🧩 Normal Accumulation" if trade_type == "Buy" else "💵📤 Normal Sell"
 
                 send_telegram.send_alert(ticker, owner, trade_type, amount, bias, link)
 
     except Exception as e:
         print(f"❌ Main error: {e}")
-
 
 if __name__ == "__main__":
     main()
