@@ -21,4 +21,4 @@ def send_alert(ticker, owner, trade_type, amount, bias, link):
     if response.status_code == 200:
         print(f"✅ Alert sent for {ticker}")
     else:
-        print(f"❌ Telegram send failed: {response.text}")
+        print(f"❌ Telegram send failed: {response.status_code} | {response.text}")
