@@ -1,15 +1,16 @@
 import requests
 import json
+from datetime import datetime
 
 SEC_HEADERS = {"User-Agent": "OriaBot (contact@oriadawn.xyz)"}
 
-
 def fetch_and_update_insider_flow(tickers):
     updated = {}
+    lookback_days = 14  # <-- ✅ Lookback window
 
     for ticker, details in tickers["tickers"].items():
         cik = details["cik"]
-        print(f"Processing {ticker} (CIK {cik})")
+        print(f"🔍 Processing {ticker} (CIK {cik})")
 
         url = f"https://data.sec.gov/submissions/CIK{str(cik).zfill(10)}.json"
         try:
@@ -20,20 +21,27 @@ def fetch_and_update_insider_flow(tickers):
             recent_filings = data.get("filings", {}).get("recent", {})
             forms = recent_filings.get("form", [])
             accession_numbers = recent_filings.get("accessionNumber", [])
-            owners = recent_filings.get("primaryIssuerName", [])
+            filing_dates = recent_filings.get("filingDate", [])
+            owners = data.get("name", "Unknown Issuer")
 
             alerts = []
+            today = datetime.utcnow().date()
 
-            for form, acc_num, owner in zip(forms, accession_numbers, owners):
+            for form, acc_num, filing_date in zip(forms, accession_numbers, filing_dates):
                 if form == "4":
-                    link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_num.replace('-', '')}/{acc_num}-index.htm"
-                    alert = {
-                        "owner": owner,
-                        "type": "Unknown",
-                        "amount_buys": 0,
-                        "link": link
-                    }
-                    alerts.append(alert)
+                    filing_dt = datetime.strptime(filing_date, "%Y-%m-%d").date()
+                    delta_days = (today - filing_dt).days
+
+                    if delta_days <= lookback_days:
+                        link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_num.replace('-', '')}/{acc_num}-index.htm"
+                        alert = {
+                            "owner": owners,
+                            "type": "Unknown",
+                            "amount_buys": 0,
+                            "link": link
+                        }
+                        alerts.append(alert)
+                        print(f"✅ Found recent Form 4 for {ticker} on {filing_date}")
 
             updated[ticker] = {
                 "cik": cik,
@@ -47,4 +55,4 @@ def fetch_and_update_insider_flow(tickers):
 
     with open("insider_flow.json", "w") as f:
         json.dump({"tickers": updated}, f, indent=2)
-    print("✅ insider_flow.json updated")
+    print("✅ insider_flow.json updated with {len(updated)} tickers")
