@@ -1,7 +1,7 @@
 import os
 import json
 import fetcher
-from parse_form4_txt import parse_form4_txt
+import parse_form4_txt
 import send_telegram
 from datetime import datetime
 
@@ -17,27 +17,23 @@ def main():
 
         for ticker, info in data["tickers"].items():
             for alert in info.get("alerts", []):
-                link = alert["link"]
+                link = alert.get("link").replace("-index.htm", ".txt")
+                owner, trade_type, amount = parse_form4_txt.parse_form4_txt(link)
 
-                trade_type, shares, price, owner = parse_form4_txt(link)
+                if amount == 0:
+                    continue  # Skip empty
 
-                if shares == 0 or price == 0 or trade_type == "Unknown":
-                    continue
-
-                amount_dollars = shares * price
-
-                if amount_dollars >= 1_000_000:
+                dollars = amount * 100.0
+                if dollars >= 1_000_000:
                     bias = "🚀💎🙌 Major Accumulation" if trade_type == "Buy" else "🔥💩🚽 Major Dump"
-                elif amount_dollars >= 500_000:
-                    bias = "💰🤑 Significant Accumulation" if trade_type == "Buy" else "💰🚽 Significant Dump"
-                elif amount_dollars >= 200_000:
+                elif dollars >= 500_000:
+                    bias = "💰💎🤑 Significant Accumulation" if trade_type == "Buy" else "💰🚽⚡️ Significant Dump"
+                elif dollars >= 200_000:
                     bias = "📈🤑 Notable Accumulation" if trade_type == "Buy" else "📉🚪 Notable Sell"
                 else:
-                    bias = "💵 Normal Accumulation" if trade_type == "Buy" else "💵 Normal Sell"
+                    bias = "💵🧩 Normal Accumulation" if trade_type == "Buy" else "💵📤 Normal Sell"
 
-                print(f"✅ {ticker}: {trade_type} {shares} @ ${price} → ${amount_dollars:,.0f}")
-
-                send_telegram.send_alert(ticker, owner, trade_type, shares, bias, link)
+                send_telegram.send_alert(ticker, owner, trade_type, amount, bias, link)
 
     except Exception as e:
         print(f"❌ Main error: {e}")
