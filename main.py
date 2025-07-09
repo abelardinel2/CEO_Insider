@@ -1,9 +1,8 @@
 import os
 import json
 import fetcher
-import parse_form4_txt
 import send_telegram
-from datetime import datetime
+from parse_form4_txt import parse_form4_txt
 
 def main():
     try:
@@ -17,21 +16,27 @@ def main():
 
         for ticker, info in data["tickers"].items():
             for alert in info.get("alerts", []):
-                link = alert.get("link").replace("-index.htm", ".txt")
-                owner, trade_type, amount = parse_form4_txt.parse_form4_txt(link)
+                link = alert.get("link")
+                owner = alert.get("owner", "Insider")
+
+                trade_type, amount = parse_form4_txt(link.replace("-index.htm", ".txt"))
 
                 if amount == 0:
-                    continue  # Skip empty
+                    continue
 
-                dollars = amount * 100.0
-                if dollars >= 1_000_000:
-                    bias = "🚀💎🙌 Major Accumulation" if trade_type == "Buy" else "🔥💩🚽 Major Dump"
-                elif dollars >= 500_000:
-                    bias = "💰💎🤑 Significant Accumulation" if trade_type == "Buy" else "💰🚽⚡️ Significant Dump"
-                elif dollars >= 200_000:
-                    bias = "📈🤑 Notable Accumulation" if trade_type == "Buy" else "📉🚪 Notable Sell"
+                # Use fake price fallback if no price in XML
+                amount_dollars = amount * 50.0
+
+                if amount_dollars >= 1_000_000:
+                    bias = "🚀💎🙌 Major"
+                elif amount_dollars >= 500_000:
+                    bias = "💰🤑 Significant"
+                elif amount_dollars >= 200_000:
+                    bias = "📈🤑 Notable"
                 else:
-                    bias = "💵🧩 Normal Accumulation" if trade_type == "Buy" else "💵📤 Normal Sell"
+                    bias = "💵 Normal"
+
+                bias += " Accumulation" if trade_type == "Buy" else " Dump"
 
                 send_telegram.send_alert(ticker, owner, trade_type, amount, bias, link)
 
