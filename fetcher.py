@@ -1,50 +1,59 @@
 import requests
 import json
+from datetime import datetime, timedelta
 
 SEC_HEADERS = {"User-Agent": "OriaBot (contact@oriadawn.xyz)"}
-
+DAYS_LOOKBACK = 14  # Only get new filings in the last 14 days
 
 def fetch_and_update_insider_flow(tickers):
     updated = {}
 
     for ticker, details in tickers["tickers"].items():
         cik = details["cik"]
-        print(f"🔍 Processing {ticker} (CIK {cik})")
+        print(f"🔍 Checking {ticker} (CIK {cik})")
 
         url = f"https://data.sec.gov/submissions/CIK{str(cik).zfill(10)}.json"
-
         try:
-            response = requests.get(url, headers=SEC_HEADERS, timeout=10)
+            response = requests.get(url, headers=SEC_HEADERS)
             response.raise_for_status()
+
             data = response.json()
-        except Exception as e:
-            print(f"❌ Primary fetch failed for {ticker}: {e}")
-            continue
+            recent = data.get("filings", {}).get("recent", {})
+            forms = recent.get("form", [])
+            accession_numbers = recent.get("accessionNumber", [])
+            owners = recent.get("primaryIssuerName", [])
+            filing_dates = recent.get("filingDate", [])
 
-        recent_filings = data.get("filings", {}).get("recent", {})
-        forms = recent_filings.get("form", [])
-        accession_numbers = recent_filings.get("accessionNumber", [])
-        owners = recent_filings.get("primaryIssuerName", [])
+            alerts = []
 
-        alerts = []
-        for form, acc_num, owner in zip(forms, accession_numbers, owners):
-            if form == "4":
+            for form, acc_num, owner, filed in zip(forms, accession_numbers, owners, filing_dates):
+                if form != "4":
+                    continue
+
+                filed_date = datetime.strptime(filed, "%Y-%m-%d").date()
+                if (datetime.utcnow().date() - filed_date).days > DAYS_LOOKBACK:
+                    continue  # Skip old
+
                 link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_num.replace('-', '')}/{acc_num}.txt"
-                alerts.append({
-                    "owner": owner or "Insider",
-                    "type": "Unknown",
-                    "amount_buys": 0,
-                    "link": link
-                })
 
-        updated[ticker] = {
-            "cik": cik,
-            "buys": len(alerts),
-            "sells": 0,
-            "alerts": alerts
-        }
+                # ✅ Dedupe
+                if link not in [a["link"] for a in alerts]:
+                    alerts.append({
+                        "owner": owner,
+                        "type": "Unknown",
+                        "amount_buys": 0,
+                        "link": link
+                    })
+
+            updated[ticker] = {
+                "cik": cik,
+                "alerts": alerts
+            }
+
+        except Exception as e:
+            print(f"❌ Fetch error for {ticker}: {e}")
 
     with open("insider_flow.json", "w") as f:
         json.dump({"tickers": updated}, f, indent=2)
 
-    print("✅ insider_flow.json updated")
+    print(f"✅ insider_flow.json saved with {sum(len(v['alerts']) for v in updated.values())} alerts.")
