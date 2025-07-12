@@ -20,16 +20,15 @@ for ticker, info in watchlist["tickers"].items():
         if not trade_type or amount == 0:
             continue
 
-        # DEBUG PRINT
         print(f"Parsed: {ticker} | Type: {trade_type} | Amount: {amount} | Price: {price} | Link: {link}")
 
-        # Use fallback price if missing or zero
+        # Fallback price if missing
         if not price or float(price) == 0.0:
-            price = 1.00  # Fallback for debug
+            price = 1.00
 
         amount_dollars = float(amount) * float(price)
 
-        # DEBUG: Lower threshold temporarily
+        # Send alert if total value >= $1 (for now, for testing)
         if amount_dollars >= 1:
             alerts.append({
                 "ticker": ticker,
@@ -54,7 +53,6 @@ for ticker, info in watchlist["tickers"].items():
         "alerts": alerts
     }
 
-# Save results
 with open("insider_flow.json", "w") as f:
     json.dump(output, f, indent=2)
 
