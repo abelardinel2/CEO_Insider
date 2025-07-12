@@ -1,39 +1,40 @@
 import requests
-from bs4 import BeautifulSoup
-
-SEC_HEADERS = {"User-Agent": "OriaBot (contact@oriadawn.xyz)"}
+import re
 
 def parse_form4_txt(url):
     try:
-        response = requests.get(url, headers=SEC_HEADERS, timeout=10)
-        response.raise_for_status()
-        text = response.text
+        response = requests.get(url, timeout=10)
+        if response.status_code != 200:
+            print(f"❌ Failed to fetch form at {url}")
+            return None, 0, 0
 
-        # Extract the XML block inside the TXT
-        xml_start = text.find("<ownershipDocument>")
-        xml_end = text.find("</ownershipDocument>") + len("</ownershipDocument>")
-        if xml_start == -1 or xml_end == -1:
-            print("❌ No XML found in TXT")
-            return "Unknown", 0
+        content = response.text
 
-        xml = text[xml_start:xml_end]
+        # Detect acquisition or disposition (A or D)
+        ad_match = re.search(r"<value>([AD])</value>", content)
+        ad_flag = ad_match.group(1) if ad_match else None
 
-        soup = BeautifulSoup(xml, "xml")
-
-        # Correct buy/sell type: acquired (A) or disposed (D)
-        ad_tag = soup.find("transactionAcquiredDisposedCode")
-        if ad_tag and ad_tag.value:
-            ad_code = ad_tag.value.text.strip()
-            trade_type = "Buy" if ad_code == "A" else "Sell" if ad_code == "D" else "Unknown"
+        if ad_flag == "A":
+            trade_type = "Buy"
+        elif ad_flag == "D":
+            trade_type = "Sell"
         else:
-            trade_type = "Unknown"
+            trade_type = None
 
-        # Shares amount
-        shares_tag = soup.find("transactionShares")
-        amount = float(shares_tag.value.text.strip().replace(",", "")) if shares_tag else 0
+        # Extract number of shares acquired or disposed
+        amount_match = re.search(r"<transactionShares>\s*<value>([\d.,]+)</value>", content)
+        amount = float(amount_match.group(1).replace(",", "")) if amount_match else 0
 
-        return trade_type, amount
+        # Extract price per share
+        price_match = re.search(r"<transactionPricePerShare>\s*<value>([\d.]+)</value>", content)
+        price = float(price_match.group(1)) if price_match else 0.0
+
+        # Fallback if price is zero
+        if not price or price == 0.0:
+            price = 1.00
+
+        return trade_type, amount, price
 
     except Exception as e:
-        print(f"❌ parse_form4_txt.py failed: {e}")
-        return "Unknown", 0
+        print(f"❌ Error parsing form at {url}: {e}")
+        return None, 0, 0
