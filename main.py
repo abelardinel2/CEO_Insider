@@ -1,47 +1,61 @@
-import os
 import json
-import fetcher
-import send_telegram
+from sec_fetcher import fetch_insider_trades
 from parse_form4_txt import parse_form4_txt
+from telegram_alert import send_telegram_alert
 
-def main():
-    try:
-        with open("cik_watchlist.json") as f:
-            tickers = json.load(f)
+with open("cik_watchlist.json") as f:
+    watchlist = json.load(f)
 
-        fetcher.fetch_and_update_insider_flow(tickers)
+output = {}
 
-        with open("insider_flow.json") as f:
-            data = json.load(f)
+for ticker, info in watchlist["tickers"].items():
+    cik = info["cik"]
+    trades = fetch_insider_trades(cik)
+    buys, sells, alerts = 0, 0, []
 
-        for ticker, info in data["tickers"].items():
-            for alert in info.get("alerts", []):
-                link = alert.get("link")
-                owner = alert.get("owner", "Insider")
+    for trade in trades:
+        link = trade["linkToTxt"]
+        trade_type, amount, price = parse_form4_txt(link)
 
-                trade_type, amount = parse_form4_txt(link.replace("-index.htm", ".txt"))
+        if not trade_type or amount == 0:
+            continue
 
-                if amount == 0:
-                    continue
+        # DEBUG PRINT
+        print(f"Parsed: {ticker} | Type: {trade_type} | Amount: {amount} | Price: {price} | Link: {link}")
 
-                # Use fake price fallback if no price in XML
-                amount_dollars = amount * 50.0
+        # Use fallback price if missing or zero
+        if not price or float(price) == 0.0:
+            price = 1.00  # Fallback for debug
 
-                if amount_dollars >= 1_000_000:
-                    bias = "🚀💎🙌 Major"
-                elif amount_dollars >= 500_000:
-                    bias = "💰🤑 Significant"
-                elif amount_dollars >= 200_000:
-                    bias = "📈🤑 Notable"
-                else:
-                    bias = "💵 Normal"
+        amount_dollars = float(amount) * float(price)
 
-                bias += " Accumulation" if trade_type == "Buy" else " Dump"
+        # DEBUG: Lower threshold temporarily
+        if amount_dollars >= 1:
+            alerts.append({
+                "ticker": ticker,
+                "trade_type": trade_type,
+                "amount": amount,
+                "price": price,
+                "value": round(amount_dollars, 2),
+                "link": link
+            })
 
-                send_telegram.send_alert(ticker, owner, trade_type, amount, bias, link)
+            if trade_type.lower() == "buy":
+                buys += 1
+            elif trade_type.lower() == "sell":
+                sells += 1
 
-    except Exception as e:
-        print(f"❌ Main error: {e}")
+            send_telegram_alert(ticker, trade_type, amount, amount_dollars, link)
 
-if __name__ == "__main__":
-    main()
+    output[ticker] = {
+        "cik": cik,
+        "buys": buys,
+        "sells": sells,
+        "alerts": alerts
+    }
+
+# Save results
+with open("insider_flow.json", "w") as f:
+    json.dump(output, f, indent=2)
+
+print("✅ insider_flow.json saved with", sum(len(v["alerts"]) for v in output.values()), "alerts.")
