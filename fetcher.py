@@ -6,7 +6,7 @@ import logging
 # Configure logging
 logging.basicConfig(
     filename="edgar_errors.log",
-    level=logging.ERROR,
+    level=logging.INFO,  # Changed to INFO to log zero Form 4s
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
@@ -40,6 +40,10 @@ def fetch_recent_form4_urls(cik):
                         urls.append(url)
                     else:
                         logging.error(f"No primaryDocument for CIK {cik}, accession {accession_numbers[i]}")
+        if not urls:
+            logging.info(f"No Form 4 filings found for CIK {cik} within last 14 days")
+        else:
+            logging.info(f"Found {len(urls)} Form 4 URLs for CIK {cik}")
         print(f"📡 Found {len(urls)} Form 4 URLs for CIK {cik}")
     except Exception as e:
         logging.error(f"Error fetching CIK {cik}: {str(e)}")
