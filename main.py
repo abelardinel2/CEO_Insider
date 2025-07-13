@@ -29,7 +29,7 @@ def main():
                 amount_dollars = amount * price
 
                 # Label tiers
-                if amount_dollars >= 1_000_000:
+                if amount_dollars >= 1:
                     bias_label = "Major Accumulation" if trade_type == "Buy" else "Major Dump"
                     bias_emoji = "🚀💎🙌" if trade_type == "Buy" else "🔥💩🚽"
                 elif amount_dollars >= 500_000:
