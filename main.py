@@ -1,53 +1,80 @@
-import os
 import json
-import fetcher
-import send_telegram
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from parse_form4_txt import parse_form4_txt
 
-def main():
+# Load CIK watchlist
+with open("cik_watchlist.json", "r") as f:
+    tickers = json.load(f)["tickers"]
+
+alerts = []
+headers = {"User-Agent": "insider-tracker"}
+
+for ticker, info in tickers.items():
+    cik = info["cik"]
+    cik_str = str(cik).zfill(10)
+    print(f"🔍 Checking {ticker} (CIK {cik})")
+
     try:
-        with open("cik_watchlist.json") as f:
-            tickers = json.load(f)
-
-        fetcher.fetch_and_update_insider_flow(tickers)
-
-        with open("insider_flow.json") as f:
-            data = json.load(f)
-
-        for ticker, info in data["tickers"].items():
-            for alert in info.get("alerts", []):
-                link = alert.get("link")
-                owner = alert.get("owner", "Insider")
-
-                trade_type, amount, price = parse_form4_txt(link.replace("-index.htm", ".txt"))
-
-                if not trade_type or amount == 0:
-                    continue  # skip incomplete or non-trade forms
-
-                amount_dollars = amount * price
-
-                # Label tiers
-                if amount_dollars >= 1:
-                    bias_label = "Major Accumulation" if trade_type == "Buy" else "Major Dump"
-                    bias_emoji = "🚀💎🙌" if trade_type == "Buy" else "🔥💩🚽"
-                elif amount_dollars >= 500_000:
-                    bias_label = "Significant Accumulation" if trade_type == "Buy" else "Significant Dump"
-                    bias_emoji = "💰💎🤑" if trade_type == "Buy" else "💰🚽⚡️"
-                elif amount_dollars >= 200_000:
-                    bias_label = "Notable Accumulation" if trade_type == "Buy" else "Notable Sell"
-                    bias_emoji = "📈🤑" if trade_type == "Buy" else "📉🚪"
-                else:
-                    bias_label = "Normal Accumulation" if trade_type == "Buy" else "Normal Sell"
-                    bias_emoji = "💵🧩" if trade_type == "Buy" else "💵📤"
-
-                bias = f"{bias_emoji} {bias_label}"
-
-                send_telegram.send_alert(ticker, owner, trade_type, amount, bias, link)
-
+        # Fetch company submissions
+        url = f"https://data.sec.gov/submissions/CIK{cik_str}.json"
+        res = requests.get(url, headers=headers)
+        res.raise_for_status()
+        data = res.json()
     except Exception as e:
-        print(f"❌ Main error: {e}")
+        print(f"❌ Fetch error for {ticker}: {e}")
+        continue
 
-if __name__ == "__main__":
-    main()
+    filings = data.get("filings", {}).get("recent", {})
+    accession_numbers = filings.get("accessionNumber", [])
+    form_types = filings.get("form", [])
+    filing_dates = filings.get("filingDate", [])
+
+    if not accession_numbers:
+        print(f"⚠️ No filings found for {ticker}")
+        continue
+
+    for acc_no, form, date_str in zip(accession_numbers, form_types, filing_dates):
+        if form != "4":
+            continue
+
+        # Filter by date (last 14 days)
+        try:
+            file_date = datetime.strptime(date_str, "%Y-%m-%d")
+            if file_date < datetime.now() - timedelta(days=14):
+                continue
+        except:
+            continue
+
+        acc_no_nodash = acc_no.replace("-", "")
+        txt_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_no_nodash}/form4.txt"
+
+        try:
+            txt_res = requests.get(txt_url, headers=headers)
+            if txt_res.status_code != 200:
+                print(f"⚠️ Could not fetch Form 4 for {ticker}: {txt_url}")
+                continue
+
+            trades = parse_form4_txt(txt_res.text)
+
+            if not trades:
+                print(f"⚠️ No trades found in {acc_no} for {ticker}")
+                continue
+
+            for trade in trades:
+                print(f"📄 {ticker} | {trade['owner']} | {trade['trade_type']} | {trade['amount']} @ ${trade['price']} → ${trade['dollar_value']:.2f}")
+
+                if trade["dollar_value"] >= 1:  # Lowered threshold for debugging
+                    alerts.append({
+                        "ticker": ticker,
+                        **trade
+                    })
+
+        except Exception as e:
+            print(f"❌ Error parsing trade for {ticker}: {e}")
+
+# Save alerts to insider_flow.json
+with open("insider_flow.json", "w") as f:
+    json.dump(alerts, f, indent=2)
+
+print(f"✅ insider_flow.json saved with {len(alerts)} alerts.")
