@@ -48,7 +48,7 @@ async def send_telegram_alert(token, chat_id, message):
     logging.error(f"Failed to send alert: {message}")
     return False
 
-def fetch_form4_urls(cik, days_back=7):
+def fetch_form4_urls(cik, days_back=30):
     end_date = datetime.now().strftime("%Y%m%d")
     start_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y%m%d")
     url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type=4&dateb={end_date}&start=0&count=100"
@@ -57,72 +57,8 @@ def fetch_form4_urls(cik, days_back=7):
         headers = {"User-Agent": "Mozilla/5.0 (compatible; InsiderBot/1.0; +your.email@example.com)"}
         response = requests.get(url, headers=headers)
         response.raise_for_status()
+        logging.info(f"EDGAR response status for CIK {cik}: {response.status_code}")
+        logging.debug(f"EDGAR response content for CIK {cik}: {response.text[:500]}...")  # First 500 chars
         soup = BeautifulSoup(response.text, 'html.parser')
         links = [f"https://www.sec.gov{a['href']}" for a in soup.find_all('a', href=True) if 'xslF345X' in a['href']]
-        logging.info(f"Found {len(links)} Form 4 URLs for CIK {cik}")
-        return links
-    except Exception as e:
-        logging.error(f"Error fetching Form 4 URLs for CIK {cik}: {e}")
-        return []
-
-def parse_form4(url, ticker, token, chat_id, ticker_data, shares_outstanding=1e6):
-    try:
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; InsiderBot/1.0; +your.email@example.com)"}
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        tree = etree.fromstring(response.content)
-        
-        person = tree.find(".//reportingOwner")
-        name = person.find(".//rptOwnerName").text if person.find(".//rptOwnerName") is not None else "Unknown"
-        role = person.find(".//title").text.lower() if person.find(".//title") is not None else ""
-        
-        transactions = []
-        non_derivative_table = tree.find(".//nonDerivativeTable")
-        if non_derivative_table is None:
-            logging.info(f"No nonDerivativeTable in {url}")
-            return
-        
-        for tx in non_derivative_table.findall(".//nonDerivativeTransaction"):
-            amount = tx.find(".//transactionAmounts/transactionShares/value").text if tx.find(".//transactionAmounts/transactionShares/value") is not None else "0"
-            price = tx.find(".//transactionAmounts/transactionPricePerShare/value").text if tx.find(".//transactionAmounts/transactionPricePerShare/value") is not None else "0"
-            code = tx.find(".//transactionCode").text if tx.find(".//transactionCode") is not None else ""
-            date = tx.find(".//transactionDate/value").text if tx.find(".//transactionDate/value") is not None else ""
-            post_shares = tx.find(".//postTransactionAmounts/sharesOwnedFollowingTransaction/value").text if tx.find(".//postTransactionAmounts/sharesOwnedFollowingTransaction/value") is not None else "0"
-            
-            tx_data = {
-                "code": code,
-                "amount": amount,
-                "price": price,
-                "date": date,
-                "post_shares": post_shares
-            }
-            
-            if is_significant_transaction(tx_data, {"title": role}, shares_outstanding):
-                tx_type = "Acquired" if code in ["P", "A", "M"] else "Disposed"
-                message = (
-                    f"Insider Transaction Alert\n"
-                    f"Ticker: {ticker}\n"
-                    f"Person: {name} ({role})\n"
-                    f"Transaction: {tx_type} {amount} shares at ${price} (Code: {code})\n"
-                    f"Date: {date}\n"
-                    f"Ownership: {post_shares} shares"
-                )
-                alert_sent = asyncio.run(send_telegram_alert(token, chat_id, message))
-                if alert_sent:
-                    if code in ["P", "S", "A", "D", "M", "F"]:
-                        ticker_data[f"{code}_count"] += 1
-                    ticker_data["alerts"].append({
-                        "date": date,
-                        "name": name,
-                        "role": role,
-                        "type": tx_type,
-                        "code": code,
-                        "shares": amount,
-                        "price": price,
-                        "post_shares": post_shares
-                    })
-                transactions.append(tx_data)
-        
-        logging.info(f"Processed {len(transactions)} significant transactions for {ticker} from {url}")
-    except Exception as e:
-        logging.error(f"Error parsing {url}: {e}")
+        logging.info(f"Found {len(links)} Form 4 URLs for CIK {cik}:
