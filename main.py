@@ -5,7 +5,7 @@ from parse_form4_txt import parse_form4_txt
 from send_alert import send_alert
 
 WATCHLIST_FILE = "cik_watchlist.json"
-VALUE_THRESHOLD = 1  # $1 for testing
+VALUE_THRESHOLD = 1  # Minimum value for alert
 
 def load_watchlist():
     with open(WATCHLIST_FILE, "r") as f:

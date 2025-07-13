@@ -7,20 +7,14 @@ def parse_form4_txt(url):
         return None
 
     soup = BeautifulSoup(r.content, "xml")
-
-    code_tag = soup.find("transactionCode")
-    shares_tag = soup.find("transactionShares")
-    price_tag = soup.find("transactionPricePerShare")
-    owner_tag = soup.find("reportingOwnerId")
-
-    if not (code_tag and shares_tag and price_tag and owner_tag):
+    try:
+        code = soup.find("transactionCode").text
+        shares = float(soup.find("transactionShares").value.text)
+        price = float(soup.find("transactionPricePerShare").value.text)
+        value = shares * price
+        owner = soup.find("reportingOwnerId").rptOwnerName.text
+    except:
         return None
-
-    code = code_tag.text.strip()
-    shares = float(shares_tag.value.text)
-    price = float(price_tag.value.text)
-    owner = owner_tag.rptOwnerName.text.strip()
-    value = shares * price
 
     bias = "💰🤑 Significant Accumulation" if code == "A" else "📉 Likely Distribution"
     trade_type = "Buy" if code == "A" else "Sell"

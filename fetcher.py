@@ -1,30 +1,21 @@
 import requests
-from datetime import datetime, timedelta
 
-def fetch_recent_form4_urls(cik):
-    urls = []
-    today = datetime.utcnow()
-    cutoff = today - timedelta(days=14)
-
-    index_url = f"https://data.sec.gov/submissions/CIK{str(cik).zfill(10)}.json"
+def fetch_recent_form4_urls(cik: str):
+    base_url = f"https://data.sec.gov/submissions/CIK{cik.zfill(10)}.json"
     headers = {"User-Agent": "Oria Dawn Analytics contact@oriadawn.xyz"}
-
     try:
-        r = requests.get(index_url, headers=headers)
-        data = r.json()
-        recent = data.get("filings", {}).get("recent", {})
-        accession_numbers = recent.get("accessionNumber", [])
-        forms = recent.get("form", [])
-        filing_dates = recent.get("filingDate", [])
-
-        for i, form_type in enumerate(forms):
+        response = requests.get(base_url, headers=headers)
+        if response.status_code != 200:
+            print(f"⚠️ Failed to fetch submissions for CIK {cik}")
+            return []
+        data = response.json()
+        urls = []
+        for idx, form_type in enumerate(data["filings"]["recent"]["form"]):
             if form_type == "4":
-                date = datetime.strptime(filing_dates[i], "%Y-%m-%d")
-                if date >= cutoff:
-                    accession = accession_numbers[i].replace("-", "")
-                    url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/xslF345X03/doc1.xml"
-                    urls.append(url)
+                accession = data["filings"]["recent"]["accessionNumber"][idx].replace("-", "")
+                primary_doc = data["filings"]["recent"]["primaryDocument"][idx]
+                urls.append(f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession}/{primary_doc}")
+        return urls
     except Exception as e:
-        print(f"❌ Error fetching CIK {cik}: {e}")
-
-    return urls
+        print(f"❌ Exception fetching data: {e}")
+        return []
