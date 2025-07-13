@@ -26,12 +26,31 @@ def main():
     # Load watchlist
     try:
         with open("cik_watchlist.json", "r") as f:
-            watchlist = json.load(f)
+            watchlist_content = f.read()
+            if not watchlist_content.strip():
+                logging.error("cik_watchlist.json is empty")
+                return
+            watchlist = json.loads(watchlist_content)
+        
+        # Ensure watchlist is a list
+        if not isinstance(watchlist, list):
+            logging.error(f"cik_watchlist.json is not a list: {watchlist}")
+            return
+        
+        # Validate each item
+        for item in watchlist:
+            if not isinstance(item, dict) or "ticker" not in item or "cik" not in item:
+                logging.error(f"Invalid watchlist item: {item}")
+                return
+        
     except FileNotFoundError:
         logging.error("cik_watchlist.json not found")
         return
     except json.JSONDecodeError as e:
-        logging.error(f"Invalid cik_watchlist.json: {e}")
+        logging.error(f"Invalid JSON in cik_watchlist.json: {e}")
+        return
+    except Exception as e:
+        logging.error(f"Error loading cik_watchlist.json: {e}")
         return
     
     # Process each ticker
