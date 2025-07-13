@@ -1,7 +1,6 @@
 import requests
 from datetime import datetime, timedelta
 import time
-import os
 import logging
 
 # Configure logging
@@ -19,18 +18,9 @@ def fetch_recent_form4_urls(cik):
     index_url = f"https://data.sec.gov/submissions/CIK{str(cik).zfill(10)}.json"
     headers = {"User-Agent": "Oria Dawn Analytics contact@oriadawn.xyz"}
 
-    # Proxy support
-    proxy_enabled = os.getenv("PROXY_ENABLED", "False") == "True"
-    scrapingbee_api_key = os.getenv("SCRAPINGBEE_API_KEY", "")
-    scrapingbee_url = "https://api.scrapingbee.com/?api_key={}&url={}"
-
     try:
-        if proxy_enabled and scrapingbee_api_key:
-            proxy_url = scrapingbee_url.format(scrapingbee_api_key, requests.utils.quote(index_url))
-            r = requests.get(proxy_url, headers=headers, timeout=10)
-        else:
-            time.sleep(0.1)  # SEC rate limit
-            r = requests.get(index_url, headers=headers, timeout=10)
+        time.sleep(0.1)  # SEC rate limit: 100ms
+        r = requests.get(index_url, headers=headers, timeout=10)
         r.raise_for_status()
         data = r.json()
         recent = data.get("filings", {}).get("recent", {})
