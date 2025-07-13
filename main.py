@@ -4,7 +4,7 @@ from fetcher import fetch_recent_form4_urls
 from parse_form4_txt import parse_form4_txt
 from send_alert import send_alert
 
-WATCHLIST_FILE = "watchlist.json"
+WATCHLIST_FILE = "cik_watchlist.json"
 FLOW_FILE = "insider_flow.json"
 VALUE_THRESHOLD = 1  # Set to $1 for testing
 
