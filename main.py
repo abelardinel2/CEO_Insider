@@ -20,7 +20,7 @@ def main():
                 if not data:
                     continue
 
-                if data["type"] in ["Buy", "Sell"] and data["value"] > 95000:
+                if data["type"] in ["Buy", "Sell"] and data["value"] > 1:
                     send_alert(
                         ticker=ticker,
                         owner=data["owner"],
