@@ -1,40 +1,30 @@
-import requests
 import re
 
-def parse_form4_txt(url):
-    try:
-        response = requests.get(url, timeout=10)
-        if response.status_code != 200:
-            print(f"❌ Failed to fetch form at {url}")
-            return None, 0, 0
+def parse_form4_txt(text):
+    trade_data = []
 
-        content = response.text
+    owner_match = re.search(r'reportingOwnerName:\s*(.*)', text)
+    owner = owner_match.group(1).strip() if owner_match else "Unknown"
 
-        # Detect acquisition or disposition (A or D)
-        ad_match = re.search(r"<value>([AD])</value>", content)
-        ad_flag = ad_match.group(1) if ad_match else None
+    transactions = re.findall(
+        r'transactionShares:\s*(?P<shares>[\d,\.]+).*?transactionPricePerShare:\s*\$?(?P<price>[\d\.]+).*?transactionAcquiredDisposedCode:\s*(?P<code>[AD])',
+        text, re.DOTALL
+    )
 
-        if ad_flag == "A":
-            trade_type = "Buy"
-        elif ad_flag == "D":
-            trade_type = "Sell"
-        else:
-            trade_type = None
+    for match in transactions:
+        shares = float(match[0].replace(',', ''))
+        price = float(match[1])
+        code = match[2]
 
-        # Extract number of shares acquired or disposed
-        amount_match = re.search(r"<transactionShares>\s*<value>([\d.,]+)</value>", content)
-        amount = float(amount_match.group(1).replace(",", "")) if amount_match else 0
+        trade_type = 'Buy' if code == 'A' else 'Sale'
+        dollar_value = shares * price
 
-        # Extract price per share
-        price_match = re.search(r"<transactionPricePerShare>\s*<value>([\d.]+)</value>", content)
-        price = float(price_match.group(1)) if price_match else 0.0
+        trade_data.append({
+            'owner': owner,
+            'trade_type': trade_type,
+            'amount': shares,
+            'price': price,
+            'dollar_value': dollar_value
+        })
 
-        # Fallback if price is zero
-        if not price or price == 0.0:
-            price = 1.00
-
-        return trade_type, amount, price
-
-    except Exception as e:
-        print(f"❌ Error parsing form at {url}: {e}")
-        return None, 0, 0
+    return trade_data
