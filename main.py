@@ -30,17 +30,23 @@ def main():
             if not watchlist_content.strip():
                 logging.error("cik_watchlist.json is empty")
                 return
+            logging.info(f"Raw cik_watchlist.json content: {watchlist_content}")
             watchlist = json.loads(watchlist_content)
         
-        # Ensure watchlist is a list
-        if not isinstance(watchlist, list):
-            logging.error(f"cik_watchlist.json is not a list: {watchlist}")
+        # Ensure watchlist has 'tickers' key
+        if not isinstance(watchlist, dict) or "tickers" not in watchlist:
+            logging.error(f"cik_watchlist.json does not have 'tickers' key: {watchlist}")
             return
         
-        # Validate each item
-        for item in watchlist:
-            if not isinstance(item, dict) or "ticker" not in item or "cik" not in item:
-                logging.error(f"Invalid watchlist item: {item}")
+        # Validate tickers
+        tickers = watchlist["tickers"]
+        if not isinstance(tickers, dict):
+            logging.error(f"'tickers' is not a dictionary: {tickers}")
+            return
+        
+        for ticker, data in tickers.items():
+            if not isinstance(data, dict) or "cik" not in data or any(k not in data for k in ["P_count", "S_count", "A_count", "D_count", "M_count", "F_count", "alerts"]):
+                logging.error(f"Invalid ticker data for {ticker}: {data}")
                 return
         
     except FileNotFoundError:
@@ -54,9 +60,8 @@ def main():
         return
     
     # Process each ticker
-    for item in watchlist:
-        ticker = item["ticker"]
-        cik = item["cik"]
+    for ticker, data in watchlist["tickers"].items():
+        cik = data["cik"]
         logging.info(f"Scanning {ticker} (CIK: {cik})")
         
         # Fetch Form 4 URLs
@@ -65,12 +70,9 @@ def main():
             logging.info(f"No Form 4 URLs found for {ticker}")
             continue
         
-        # Parse each Form 4
+        # Parse each Form 4 and update counts/alerts
         for url in urls:
-            parse_form4(url, ticker, telegram_token, telegram_chat_id)
-        
-        # Update alert count
-        item["alert_count"] += len(urls)
+            parse_form4(url, ticker, telegram_token, telegram_chat_id, watchlist["tickers"][ticker])
     
     # Save updated watchlist
     try:
