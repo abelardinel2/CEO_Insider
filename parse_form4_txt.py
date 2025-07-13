@@ -1,5 +1,4 @@
 import requests
-import os
 from bs4 import BeautifulSoup
 import time
 import logging
@@ -13,17 +12,10 @@ logging.basicConfig(
 
 def parse_form4_txt(url):
     headers = {"User-Agent": "Oria Dawn Analytics contact@oriadawn.xyz"}
-    proxy_enabled = os.getenv("PROXY_ENABLED", "False") == "True"
-    scrapingbee_api_key = os.getenv("SCRAPINGBEE_API_KEY", "")
-    scrapingbee_url = "https://api.scrapingbee.com/?api_key={}&url={}"
 
     try:
-        if proxy_enabled and scrapingbee_api_key:
-            proxy_url = scrapingbee_url.format(scrapingbee_api_key, requests.utils.quote(url))
-            r = requests.get(proxy_url, headers=headers, timeout=10)
-        else:
-            time.sleep(0.1)  # SEC rate limit
-            r = requests.get(url, headers=headers, timeout=10)
+        time.sleep(0.1)  # SEC rate limit: 100ms
+        r = requests.get(url, headers=headers, timeout=10)
         r.raise_for_status()
     except Exception as e:
         logging.error(f"Failed to fetch {url}: {str(e)}")
