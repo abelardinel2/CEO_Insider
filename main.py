@@ -1,58 +1,99 @@
 import json
 import requests
 import time
-from bs4 import BeautifulSoup
-from parse_form4_txt import parse_form4_txt
+from datetime import datetime, timedelta
+from telegram import Bot
 
-headers = {
-    "User-Agent": "insider-flow-analyzer",
-    "Accept-Encoding": "gzip, deflate",
-    "Host": "www.sec.gov"
-}
+TELEGRAM_BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
+TELEGRAM_CHAT_ID = "YOUR_TELEGRAM_CHAT_ID"
+bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
-with open("cik_watchlist.json", "r") as f:
-    watchlist = json.load(f)["tickers"]
+def load_watchlist():
+    with open("cik_watchlist.json") as f:
+        return json.load(f)["tickers"]
 
-alerts = {}
+def fetch_company_filings(cik):
+    url = f"https://data.sec.gov/submissions/CIK{str(cik).zfill(10)}.json"
+    headers = {"User-Agent": "insider-bot"}
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print(f"❌ Could not fetch company page for CIK {cik}: {e}")
+        return None
 
-for ticker, info in watchlist.items():
-    cik = str(info["cik"])
-    cik_padded = cik.zfill(10)
-    print(f"🔍 Checking {ticker} (CIK {cik})")
-    url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type=4&count=40&owner=only"
-    res = requests.get(url, headers=headers)
-    
-    if res.status_code != 200:
-        print(f"❌ Could not fetch company page for {ticker}")
-        continue
+def extract_form4_urls(company_data):
+    try:
+        filings = company_data["filings"]["recent"]
+        form_4_indexes = [i for i, f in enumerate(filings["form"]) if f == "4"]
+        urls = []
+        for i in form_4_indexes:
+            accession = filings["accessionNumber"][i].replace("-", "")
+            cik = str(company_data["cik"]).zfill(10)
+            urls.append(f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession}/index.json")
+        return urls
+    except KeyError:
+        return []
 
-    soup = BeautifulSoup(res.text, "html.parser")
-    rows = soup.find_all("tr")
+def fetch_form_data(url):
+    headers = {"User-Agent": "insider-bot"}
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        for file in data.get("directory", {}).get("item", []):
+            if file["name"].endswith(".xml") and "form4" in file["name"].lower():
+                return f"https://www.sec.gov/Archives/edgar/data/{'/'.join(url.split('/')[-3:-1])}/{file['name']}"
+    except:
+        return None
+    return None
 
-    for row in rows:
-        cells = row.find_all("td")
-        if len(cells) < 2:
+def parse_form4(url):
+    try:
+        response = requests.get(url, headers={"User-Agent": "insider-bot"})
+        if response.status_code == 200:
+            text = response.text
+            if "<transactionShares>" in text and "<transactionPricePerShare>" in text:
+                return True
+    except:
+        pass
+    return False
+
+def send_alert(ticker, cik, form_url, insider="Unknown", shares="0", price="Unknown"):
+    bias = "💵🚢 Normal Sell" if insider != "Unknown" else "📉⚠️ Possible Dump"
+    message = (
+        f"📢 Insider Alert: {ticker}\n"
+        f"👤 Insider: {insider}\n"
+        f"Type: Unknown\n"
+        f"Amount: {shares} shares\n"
+        f"Bias: {bias}\n"
+        f"Link: {form_url}"
+    )
+    bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+
+def main():
+    tickers = load_watchlist()
+    alerts = []
+    for ticker, data in tickers.items():
+        cik = data["cik"]
+        print(f"🔍 Checking {ticker} (CIK {cik})")
+        company_data = fetch_company_filings(cik)
+        if not company_data:
             continue
-        link_cell = cells[1].find("a")
-        if not link_cell:
-            continue
-        href = link_cell.get("href")
-        if "Archives" not in href or not href.endswith(".txt"):
-            continue
-        txt_url = "https://www.sec.gov" + href
-
-        try:
-            txt_res = requests.get(txt_url, headers=headers)
-            if txt_res.status_code == 200:
-                form_data = parse_form4_txt(txt_res.text)
-                if form_data:
-                    alerts.setdefault(ticker, []).append(form_data)
-                    print(f"✅ Alert for {ticker}: {form_data}")
+        form_urls = extract_form4_urls(company_data)
+        for url in form_urls:
+            form_url = fetch_form_data(url)
+            if form_url and parse_form4(form_url):
+                send_alert(ticker, cik, form_url)
+                alerts.append(form_url)
+                break
             time.sleep(0.5)
-        except Exception as e:
-            print(f"❗ Error fetching or parsing Form 4 for {ticker}: {e}")
+        time.sleep(1)
 
-with open("insider_flow.json", "w") as f:
-    json.dump({"tickers": alerts}, f, indent=2)
+    with open("insider_flow.json", "w") as f:
+        json.dump({"alerts": alerts}, f, indent=2)
+    print("✅ insider_flow.json saved.")
 
-print("✅ insider_flow.json saved.")
+if __name__ == "__main__":
+    main()
