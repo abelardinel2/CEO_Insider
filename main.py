@@ -1,35 +1,75 @@
-from fetch_sec_filings import fetch_recent_form4_urls
-from parse_form4_txt import parse_form4_txt
-from send_telegram import send_alert
+import os
 import json
+from datetime import datetime, timedelta
+from fetcher import fetch_latest_form4_urls
+from parse_form4_txt import parse_form4_text
+from send_telegram import send_telegram_message
 
-with open("cik_watchlist.json") as f:
-    watchlist = json.load(f)["tickers"]
+# Load CIKs to monitor
+with open("cik_watchlist.json", "r") as f:
+    cik_watchlist = json.load(f)
 
-try:
-    with open("insider_flow.json") as f:
-        data = json.load(f)
-except FileNotFoundError:
-    data = {ticker: {"alerts": []} for ticker in watchlist}
+# Set the minimum trade value threshold
+MIN_TRADE_VALUE = 95000  # $95K
 
-for ticker, info in watchlist.items():
-    cik = str(info["cik"])
-    urls = fetch_recent_form4_urls(cik, days_back=7)
+# Set how many days back to check
+DAYS_BACK = 7
+cutoff_date = datetime.utcnow() - timedelta(days=DAYS_BACK)
+
+# Collect alerts to save in JSON
+alerts = []
+
+for ticker, cik in cik_watchlist.items():
+    print(f"🔍 Checking {ticker} (CIK {cik})")
+
+    urls = fetch_latest_form4_urls(cik)
+    if not urls:
+        print(f"⚠️ No forms found for {ticker}")
+        continue
+
     for url in urls:
         try:
-            result = parse_form4_txt(url)
-            if result and result["value"] >= 95000 and url not in data[ticker]["alerts"]:
-                send_alert(
-                    ticker,
-                    result["owner"],
-                    result["type"],
-                    result["shares"],
-                    result["bias"],
-                    url,
-                )
-                data[ticker]["alerts"].append(url)
+            filing_date, parsed = parse_form4_text(url)
         except Exception as e:
-            print(f"Error parsing {url}: {e}")
+            print(f"❌ Failed to parse {url}: {e}")
+            continue
 
+        if filing_date < cutoff_date:
+            continue
+
+        for entry in parsed:
+            trade_value = entry["value"]
+            transaction_type = entry["type"]
+
+            if transaction_type in ["A", "D"] and trade_value >= MIN_TRADE_VALUE:
+                alert = {
+                    "ticker": ticker,
+                    "cik": cik,
+                    "form_url": url,
+                    "filing_date": filing_date.strftime("%Y-%m-%d"),
+                    "insider": entry["insider"],
+                    "title": entry["title"],
+                    "type": transaction_type,
+                    "value": trade_value,
+                    "shares": entry["shares"],
+                    "bias": "💰🚢 Normal Buy" if transaction_type == "A" else "💰🚢 Normal Sell",
+                }
+
+                message = (
+                    f"📢 Insider Alert: <b>{ticker}</b>\n"
+                    f"🧑 Insider: <b>{alert['insider']}</b>\n"
+                    f"Title: {alert['title']}\n"
+                    f"Type: {alert['type']}\n"
+                    f"Amount: <b>${alert['value']:,}</b>\n"
+                    f"Bias: {alert['bias']}\n"
+                    f"Link: {alert['form_url']}"
+                )
+
+                send_telegram_message(message)
+                alerts.append(alert)
+
+# Save alerts to file
 with open("insider_flow.json", "w") as f:
-    json.dump(data, f, indent=2)
+    json.dump(alerts, f, indent=2)
+
+print("✅ insider_flow.json saved.")
