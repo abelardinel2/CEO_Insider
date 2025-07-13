@@ -6,11 +6,9 @@ from telegram import Bot
 import asyncio
 from datetime import datetime, timedelta
 
-# Configure logging (already set in main.py)
 logging.getLogger().setLevel(logging.INFO)
 
 def is_significant_transaction(tx, person, shares_outstanding=1e6):
-    """Determine if a transaction is significant based on role, type, and size."""
     role = person.get("title", "").lower()
     if not any(r in role for r in ["ceo", "chief executive", "cfo", "chief financial", "director", "president"]):
         logging.info(f"Filtered non-significant role: {person.get('title')}")
@@ -30,7 +28,6 @@ def is_significant_transaction(tx, person, shares_outstanding=1e6):
         logging.warning(f"Invalid transaction data: {tx}")
         return False
     
-    # Significant if >$100,000, >10,000 shares, or >10% ownership change
     if dollar_value > 100_000 or shares > 10_000:
         return True
     if post_shares > 0 and (shares / post_shares * 100) > 10:
@@ -39,7 +36,6 @@ def is_significant_transaction(tx, person, shares_outstanding=1e6):
     return False
 
 async def send_telegram_alert(token, chat_id, message):
-    """Send a Telegram alert with retries."""
     for attempt in range(3):
         try:
             bot = Bot(token=token)
@@ -53,7 +49,6 @@ async def send_telegram_alert(token, chat_id, message):
     return False
 
 def fetch_form4_urls(cik, days_back=7):
-    """Fetch Form 4 URLs from SEC EDGAR."""
     end_date = datetime.now().strftime("%Y%m%d")
     start_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y%m%d")
     url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type=4&dateb={end_date}&start=0&count=100"
@@ -70,20 +65,17 @@ def fetch_form4_urls(cik, days_back=7):
         logging.error(f"Error fetching Form 4 URLs for CIK {cik}: {e}")
         return []
 
-def parse_form4(url, ticker, token, chat_id, shares_outstanding=1e6):
-    """Parse a Form 4 filing and send alerts for significant transactions."""
+def parse_form4(url, ticker, token, chat_id, ticker_data, shares_outstanding=1e6):
     try:
         headers = {"User-Agent": "Mozilla/5.0 (compatible; InsiderBot/1.0; +your.email@example.com)"}
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         tree = etree.fromstring(response.content)
         
-        # Extract person details
         person = tree.find(".//reportingOwner")
         name = person.find(".//rptOwnerName").text if person.find(".//rptOwnerName") is not None else "Unknown"
         role = person.find(".//title").text.lower() if person.find(".//title") is not None else ""
         
-        # Parse non-derivative transactions
         transactions = []
         non_derivative_table = tree.find(".//nonDerivativeTable")
         if non_derivative_table is None:
@@ -111,11 +103,24 @@ def parse_form4(url, ticker, token, chat_id, shares_outstanding=1e6):
                     f"Insider Transaction Alert\n"
                     f"Ticker: {ticker}\n"
                     f"Person: {name} ({role})\n"
-                    f"Transaction: {tx_type} {amount} shares at ${price}\n"
+                    f"Transaction: {tx_type} {amount} shares at ${price} (Code: {code})\n"
                     f"Date: {date}\n"
                     f"Ownership: {post_shares} shares"
                 )
-                asyncio.run(send_telegram_alert(token, chat_id, message))
+                alert_sent = asyncio.run(send_telegram_alert(token, chat_id, message))
+                if alert_sent:
+                    if code in ["P", "S", "A", "D", "M", "F"]:
+                        ticker_data[f"{code}_count"] += 1
+                    ticker_data["alerts"].append({
+                        "date": date,
+                        "name": name,
+                        "role": role,
+                        "type": tx_type,
+                        "code": code,
+                        "shares": amount,
+                        "price": price,
+                        "post_shares": post_shares
+                    })
                 transactions.append(tx_data)
         
         logging.info(f"Processed {len(transactions)} significant transactions for {ticker} from {url}")
