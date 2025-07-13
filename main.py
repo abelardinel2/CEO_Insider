@@ -1,42 +1,42 @@
-import requests
+import json
 import feedparser
 from send_alert import send_telegram_message
 
-CIKS = {
-    "NVDA": "1045810",
-    "PLTR": "1739924",
-    # add more if needed
-}
-
+WATCHLIST_FILE = "cik_watchlist.json"
 RSS_FEED = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&count=100&output=atom"
 
-def parse_rss():
-    print("🛰️  Parsing SEC RSS feed...")
+def load_ciks():
+    with open(WATCHLIST_FILE, "r") as f:
+        return {v["cik"]: k for k, v in json.load(f)["tickers"].items()}
+
+def parse_rss_and_alert():
+    print("🛰️ Parsing SEC RSS feed...")
     feed = feedparser.parse(RSS_FEED)
-    print(f"🔍 Found {len(feed.entries)} entries.")
+    print(f"🔍 Total entries found: {len(feed.entries)}")
+
+    cik_map = load_ciks()
 
     for entry in feed.entries:
         title = entry.get("title", "")
         link = entry.get("link", "")
         summary = entry.get("summary", "")
-        cik_match = None
+        
+        # Skip non-Form 4 filings
+        if "Form 4" not in title:
+            continue
 
-        for ticker, cik in CIKS.items():
+        # Extract CIK from link (EDGAR format includes it)
+        for cik in cik_map:
             if cik in link:
-                cik_match = cik
-                break
-
-        if cik_match:
-            print(f"✅ Match found: {title}")
-            if "Form 4" in title:
+                ticker = cik_map[cik]
+                print(f"✅ Match: {ticker} ({cik}) | {title}")
                 msg = (
                     f"📢 Insider Alert: {ticker}\n"
-                    f"<b>{title}</b>\n"
-                    f"<a href=\"{link}\">View Filing</a>"
+                    f"👤 {title}\n"
+                    f"<a href=\"{link}\">🔗 View Filing</a>"
                 )
                 send_telegram_message(msg)
-        else:
-            print(f"⏭️ No match for: {title}")
+                break
 
 if __name__ == "__main__":
-    parse_rss()
+    parse_rss_and_alert()
