@@ -54,7 +54,7 @@ def fetch_form4_urls(cik, days_back=30):
     url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type=4&dateb={end_date}&start=0&count=100"
     
     try:
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; InsiderBot/1.0; +your.email@example.com)"}
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; OriaDawnAnalytics; +contact@oriadawn.xyz)"}
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         logging.info(f"EDGAR response status for CIK {cik}: {response.status_code}")
