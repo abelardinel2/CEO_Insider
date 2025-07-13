@@ -22,13 +22,12 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python main.py
-      - name: Commit and push insider_flow.json
+      - name: Commit and push cik_watchlist.json
         run: |
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
-          git add insider_flow.json
           git add cik_watchlist.json
-          git commit -m "Update insider_flow.json and cik_watchlist.json" || echo "No changes to commit"
+          git commit -m "Update cik_watchlist.json" || echo "No changes to commit"
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
