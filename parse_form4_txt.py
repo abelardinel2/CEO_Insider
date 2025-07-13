@@ -1,30 +1,47 @@
 import re
 
-def parse_form4_txt(text):
-    trade_data = []
+def parse_form4_txt(txt):
+    try:
+        lines = txt.splitlines()
 
-    owner_match = re.search(r'reportingOwnerName:\s*(.*)', text)
-    owner = owner_match.group(1).strip() if owner_match else "Unknown"
+        trade_type = None
+        amount = None
+        price = None
+        owner = None
 
-    transactions = re.findall(
-        r'transactionShares:\s*(?P<shares>[\d,\.]+).*?transactionPricePerShare:\s*\$?(?P<price>[\d\.]+).*?transactionAcquiredDisposedCode:\s*(?P<code>[AD])',
-        text, re.DOTALL
-    )
+        for line in lines:
+            # Match transaction code
+            if 'transactionAcquiredDisposedCode' in line:
+                if 'A' in line:
+                    trade_type = 'Buy'
+                elif 'D' in line:
+                    trade_type = 'Sell'
 
-    for match in transactions:
-        shares = float(match[0].replace(',', ''))
-        price = float(match[1])
-        code = match[2]
+            # Match number of shares
+            if 'transactionShares' in line and not amount:
+                match = re.search(r'(\d{1,3}(,\d{3})*|\d+)(\.\d+)?', line)
+                if match:
+                    amount = match.group().replace(',', '')
 
-        trade_type = 'Buy' if code == 'A' else 'Sale'
-        dollar_value = shares * price
+            # Match price per share
+            if 'transactionPricePerShare' in line and not price:
+                match = re.search(r'\d+(\.\d+)?', line)
+                if match:
+                    price = match.group()
 
-        trade_data.append({
-            'owner': owner,
-            'trade_type': trade_type,
-            'amount': shares,
-            'price': price,
-            'dollar_value': dollar_value
-        })
+            # Match insider's name
+            if 'reportingOwnerName' in line and not owner:
+                owner = line.split(">")[-2].strip()
 
-    return trade_data
+        if trade_type and amount and owner:
+            return {
+                "owner": owner,
+                "type": trade_type,
+                "amount": int(float(amount)),
+                "price": float(price) if price else None
+            }
+
+    except Exception as e:
+        print(f"Error parsing Form 4 TXT: {e}")
+
+    return None
