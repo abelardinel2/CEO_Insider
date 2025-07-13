@@ -1,75 +1,69 @@
-import os
 import json
+import time
 from datetime import datetime, timedelta
-from fetcher import fetch_latest_form4_urls
-from parse_form4_txt import parse_form4_text
-from send_telegram import send_telegram_message
+from fetcher import fetch_recent_form4_urls
+from parse_form4_txt import extract_form4_data
+from send_alert import send_alert
 
-# Load CIKs to monitor
-with open("cik_watchlist.json", "r") as f:
-    cik_watchlist = json.load(f)
+# Load your CIK watchlist
+with open("cik_watchlist.json", "r") as file:
+    cik_data = json.load(file)
 
-# Set the minimum trade value threshold
-MIN_TRADE_VALUE = 95000  # $95K
+# Time filter: past 7 days
+cutoff_date = datetime.utcnow() - timedelta(days=7)
 
-# Set how many days back to check
-DAYS_BACK = 7
-cutoff_date = datetime.utcnow() - timedelta(days=DAYS_BACK)
-
-# Collect alerts to save in JSON
-alerts = []
-
-for ticker, cik in cik_watchlist.items():
+for ticker, cik in cik_data.items():
     print(f"🔍 Checking {ticker} (CIK {cik})")
 
-    urls = fetch_latest_form4_urls(cik)
-    if not urls:
-        print(f"⚠️ No forms found for {ticker}")
-        continue
+    try:
+        # Step 1: Get recent filings
+        form4_urls = fetch_recent_form4_urls(cik, days_back=7)
 
-    for url in urls:
-        try:
-            filing_date, parsed = parse_form4_text(url)
-        except Exception as e:
-            print(f"❌ Failed to parse {url}: {e}")
-            continue
+        for url in form4_urls:
+            # Step 2: Parse Form 4
+            form_data = extract_form4_data(url)
 
-        if filing_date < cutoff_date:
-            continue
+            if not form_data:
+                continue
 
-        for entry in parsed:
-            trade_value = entry["value"]
-            transaction_type = entry["type"]
+            for txn in form_data["transactions"]:
+                # Extract fields
+                code = txn.get("code")
+                date_str = txn.get("date")
+                shares = txn.get("shares", 0)
+                owner = txn.get("owner")
 
-            if transaction_type in ["A", "D"] and trade_value >= MIN_TRADE_VALUE:
-                alert = {
-                    "ticker": ticker,
-                    "cik": cik,
-                    "form_url": url,
-                    "filing_date": filing_date.strftime("%Y-%m-%d"),
-                    "insider": entry["insider"],
-                    "title": entry["title"],
-                    "type": transaction_type,
-                    "value": trade_value,
-                    "shares": entry["shares"],
-                    "bias": "💰🚢 Normal Buy" if transaction_type == "A" else "💰🚢 Normal Sell",
-                }
+                # Parse and check date
+                try:
+                    txn_date = datetime.strptime(date_str, "%Y-%m-%d")
+                except Exception:
+                    continue
 
-                message = (
-                    f"📢 Insider Alert: <b>{ticker}</b>\n"
-                    f"🧑 Insider: <b>{alert['insider']}</b>\n"
-                    f"Title: {alert['title']}\n"
-                    f"Type: {alert['type']}\n"
-                    f"Amount: <b>${alert['value']:,}</b>\n"
-                    f"Bias: {alert['bias']}\n"
-                    f"Link: {alert['form_url']}"
+                if txn_date < cutoff_date:
+                    continue
+
+                # Filter: Code must be A (acquisition) or D (disposition)
+                if code not in ["A", "D"]:
+                    continue
+
+                # Filter: Shares must exceed $95K estimated value (we assume 1 share ≈ $1 for simplicity or customize)
+                if shares < 95000:
+                    continue
+
+                # Determine bias
+                bias = "Bullish ✅" if code == "A" else "Bearish ❌"
+
+                # Send Telegram alert
+                send_alert(
+                    ticker=ticker,
+                    owner=owner,
+                    trade_type="Buy" if code == "A" else "Sell",
+                    amount=shares,
+                    bias=bias,
+                    link=url
                 )
 
-                send_telegram_message(message)
-                alerts.append(alert)
+                time.sleep(1)  # avoid hitting API too fast
 
-# Save alerts to file
-with open("insider_flow.json", "w") as f:
-    json.dump(alerts, f, indent=2)
-
-print("✅ insider_flow.json saved.")
+    except Exception as e:
+        print(f"❌ Error checking {ticker}: {e}")
