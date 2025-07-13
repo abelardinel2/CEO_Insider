@@ -2,36 +2,34 @@ import requests
 from bs4 import BeautifulSoup
 
 def parse_form4_txt(url):
-    try:
-        r = requests.get(url)
-        if r.status_code != 200:
-            return None
-
-        soup = BeautifulSoup(r.content, "xml")
-        transaction = soup.find("nonDerivativeTransaction")
-        if not transaction:
-            return None
-
-        code = transaction.find("transactionCode").text.strip()
-        shares = float(transaction.find("transactionShares").find("value").text.strip())
-        price_tag = transaction.find("transactionPricePerShare")
-        price = float(price_tag.find("value").text.strip()) if price_tag else 0.0
-        value = shares * price
-        owner = soup.find("reportingOwnerId").find("rptOwnerName").text.strip()
-
-        trade_type = "Buy" if code in ["P", "A", "M"] else "Sell"
-        bias = "💰🤑 Accumulation" if trade_type == "Buy" else "📉 Distribution"
-
-        return {
-            "owner": owner,
-            "type": trade_type,
-            "code": code,
-            "shares": shares,
-            "price": price,
-            "value": value,
-            "bias": bias,
-            "url": url
-        }
-    except Exception as e:
-        print(f"❌ Failed to parse form: {e}")
+    r = requests.get(url)
+    if r.status_code != 200:
         return None
+
+    soup = BeautifulSoup(r.content, "xml")
+
+    code_tag = soup.find("transactionCode")
+    shares_tag = soup.find("transactionShares")
+    price_tag = soup.find("transactionPricePerShare")
+    owner_tag = soup.find("reportingOwnerId")
+
+    if not (code_tag and shares_tag and price_tag and owner_tag):
+        return None
+
+    code = code_tag.text.strip()
+    shares = float(shares_tag.value.text)
+    price = float(price_tag.value.text)
+    owner = owner_tag.rptOwnerName.text.strip()
+    value = shares * price
+
+    bias = "💰🤑 Significant Accumulation" if code == "A" else "📉 Likely Distribution"
+    trade_type = "Buy" if code == "A" else "Sell"
+
+    return {
+        "owner": owner,
+        "type": trade_type,
+        "shares": shares,
+        "price": price,
+        "value": value,
+        "bias": bias,
+    }
