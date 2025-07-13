@@ -72,7 +72,7 @@ def fetch_form4_urls(cik, days_back=30):
 
 def parse_form4(url, ticker, token, chat_id, ticker_data, shares_outstanding=1e6):
     try:
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; InsiderBot/1.0; +your.email@example.com)"}
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; OriaDawnAnalytics; +contact@oriadawn.xyz)"}
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         logging.info(f"Form 4 response status for {url}: {response.status_code}")
