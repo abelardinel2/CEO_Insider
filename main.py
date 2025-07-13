@@ -1,35 +1,63 @@
 import json
-import os
+import time
 from fetcher import fetch_recent_form4_urls
 from parse_form4_txt import parse_form4_txt
 from send_alert import send_alert
 
-def load_watchlist(path="cik_watchlist.json"):
-    with open(path, "r") as f:
-        return json.load(f)
+WATCHLIST_FILE = "watchlist.json"
+FLOW_FILE = "insider_flow.json"
+VALUE_THRESHOLD = 1  # Set to $1 for testing
 
-def save_watchlist(data, path="cik_watchlist.json"):
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
+def load_watchlist():
+    with open(WATCHLIST_FILE, "r") as f:
+        return json.load(f)["tickers"]
+
+def load_flow_log():
+    try:
+        with open(FLOW_FILE, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+def save_flow_log(log):
+    with open(FLOW_FILE, "w") as f:
+        json.dump(log, f, indent=2)
 
 def main():
-    data = load_watchlist()
-    for ticker, info in data["tickers"].items():
-        cik = info["cik"]
-        urls = fetch_recent_form4_urls(cik)
-        for url in urls:
-            if url in info["alerts"]:
-                continue
-            parsed = parse_form4_txt(url)
-            if parsed:
-                code = parsed["code"]
-                count_key = f"{code}_count"
-                if count_key in info:
-                    info[count_key] += 1
-                info["alerts"].append(url)
-                send_alert(ticker, parsed["owner"], parsed["type"], parsed["shares"], parsed["bias"], url)
+    tickers = load_watchlist()
+    flow_log = load_flow_log()
 
-    save_watchlist(data)
+    for ticker, info in tickers.items():
+        cik = info["cik"]
+        print(f"📡 Scanning: {ticker} (CIK {cik})")
+        form_urls = fetch_recent_form4_urls(cik)
+
+        for url in form_urls:
+            if url in flow_log:
+                continue  # Skip already processed
+            try:
+                trade = parse_form4_txt(url)
+                if trade and trade["value"] >= VALUE_THRESHOLD:
+                    send_alert(
+                        ticker=ticker,
+                        owner=trade["owner"],
+                        trade_type=trade["type"],
+                        amount=trade["shares"],
+                        bias=trade["bias"],
+                        link=url,
+                    )
+                    flow_log[url] = {
+                        "ticker": ticker,
+                        "owner": trade["owner"],
+                        "type": trade["type"],
+                        "shares": trade["shares"],
+                        "value": trade["value"],
+                    }
+                    time.sleep(1)
+            except Exception as e:
+                print(f"❌ Failed to process {url}: {e}")
+
+    save_flow_log(flow_log)
 
 if __name__ == "__main__":
     main()
