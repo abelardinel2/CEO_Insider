@@ -1,17 +1,15 @@
-from fetch_rss import fetch_rss_entries
-from send_alert import send_telegram_message
+from fetch_rss import fetch_insider_alerts
+from send_alert import send_telegram_alert
 
 def main():
-    print("🛰️ Parsing SEC RSS feed...")
-    entries = fetch_rss_entries()
-
-    if not entries:
-        print("🔍 Total entries found: 0")
-        send_telegram_message("📭 No insider alerts found.")
+    alerts = fetch_insider_alerts()
+    if not alerts:
+        send_telegram_alert("🔍 No insider alerts found today.")
         return
 
-    for alert in entries:
-        send_telegram_message(alert)
+    for ticker, cik, link in alerts:
+        message = f"📢 Insider Alert: {ticker}\n{link}"
+        send_telegram_alert(message)
 
 if __name__ == "__main__":
     main()
