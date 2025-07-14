@@ -19,7 +19,7 @@ def fetch_rss_entries():
     cutoff = datetime.utcnow() - timedelta(days=7)
 
     for entry in feed.entries:
-        if "type 4" not in entry.title.lower():
+        if "type 4/A" not in entry.title.lower():
             continue
 
         if "link" not in entry:
