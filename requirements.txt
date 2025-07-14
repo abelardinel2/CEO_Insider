@@ -1,4 +1,3 @@
-feedparser
-requests
-python-dotenv
-beautifulsoup4
+feedparser==6.0.11
+requests==2.31.0
+python-dotenv==1.0.1
