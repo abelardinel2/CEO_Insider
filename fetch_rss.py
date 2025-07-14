@@ -1,47 +1,39 @@
-import requests
 import feedparser
 import json
 from datetime import datetime, timedelta
-from parse_form4_txt import parse_form4_txt
 
-CIK_FILE = "cik_watchlist.json"
+def fetch_insider_alerts():
+    FEED_URL = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&CIK=&type=4&company=&dateb=&owner=include&start=0&count=100&output=atom"
+    feed = feedparser.parse(FEED_URL)
 
-def load_watchlist():
-    with open(CIK_FILE, "r") as f:
-        return json.load(f)["tickers"]
+    # Load your CIK watchlist
+    with open("cik_watchlist.json", "r") as f:
+        cik_data = json.load(f)["tickers"]
 
-def fetch_rss_entries():
-    base_url = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&output=atom"
-    feed = feedparser.parse(base_url)
-    watchlist = load_watchlist()
-
-    recent_entries = []
-    cutoff = datetime.utcnow() - timedelta(days=7)
+    alerts = []
+    now = datetime.utcnow()
+    seven_days_ago = now - timedelta(days=7)
 
     for entry in feed.entries:
-        if "type 4/A" not in entry.title.lower():
-            continue
-
-        if "link" not in entry:
-            continue
-
-        cik_match = [ticker for ticker, data in watchlist.items() if str(data["cik"]) in entry.link]
-        if not cik_match:
-            continue
-
-        updated = datetime.strptime(entry.updated, "%Y-%m-%dT%H:%M:%S%z")
-        if updated.replace(tzinfo=None) < cutoff:
-            continue
+        title = entry.get("title", "")
+        link = entry.get("link", "")
+        updated_str = entry.get("updated", "")
 
         try:
-            txt_url = entry.link.replace("-index.htm", ".txt")
-            raw_txt = requests.get(txt_url).text
-            parsed = parse_form4_txt(raw_txt)
+            updated = datetime.strptime(updated_str, "%Y-%m-%dT%H:%M:%S-04:00")
+        except ValueError:
+            continue
 
-            if parsed:
-                alert_msg = f"📢 Insider Alert: {cik_match[0]}\n👤 Insider: {parsed['owner']}\nType: {parsed['transaction_type']}\nAmount: {parsed['amount']} shares\nBias: {parsed['bias']}\nLink: {entry.link}"
-                recent_entries.append(alert_msg)
-        except Exception as e:
-            print(f"⚠️ Error parsing entry: {e}")
+        if updated < seven_days_ago:
+            continue
 
-    return recent_entries
+        if not any(ftype in title for ftype in ["4", "4/A"]):
+            continue
+
+        for ticker, info in cik_data.items():
+            cik = str(info["cik"])
+            if cik in link:
+                alerts.append((ticker, cik, link))
+                break
+
+    return alerts
